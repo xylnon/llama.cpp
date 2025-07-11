@@ -6036,7 +6036,7 @@ class UltravoxAudioModel(MmprojModel):
 
 @ModelBase.register("Florence2ForConditionalGeneration")
 class Florence2Model(MmprojModel):
-    model_arch = gguf.MODEL_ARCH.FLORENCE2
+    # model_arch = gguf.MODEL_ARCH.FLORENCE2
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
