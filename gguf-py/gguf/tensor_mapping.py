@@ -31,6 +31,10 @@ class TensorNameMap:
             "model.embeddings",                          # rwkv7
             "model.word_embeddings",                     # bailingmoe
             "language_model.model.embed_tokens",         # llama4
+            "language_model.model.shared",               # florence2
+            # TODO
+            "language_model.model.encoder.embed_tokens", # florence2
+            "language_model.model.decoder.embed_tokens", # florence2
         ),
 
         # Token type embeddings
@@ -49,6 +53,8 @@ class TensorNameMap:
             "model.pre_ln",               # rwkv7
             "model.layers.0.pre_norm",    # rwkv7
             "backbone.norm",              # wavtokenizer
+            "language_model.model.encoder.layernorm_embedding", # flornece2
+            "language_model.model.decoder.layernorm_embedding", # flornece2
         ),
 
         # Position embeddings
@@ -56,6 +62,9 @@ class TensorNameMap:
             "transformer.wpe",                 # gpt2
             "embeddings.position_embeddings",  # bert
             "wpe",                             # gpt2
+            # TODO
+            "language_model.model.encoder.embed_positions", # florence2
+            "language_model.model.decoder.embed_positions", # florence2
         ),
 
         # Output
@@ -69,6 +78,7 @@ class TensorNameMap:
             "head",                      # rwkv
             "head.out",                  # wavtokenizer
             "lm_head",                   # llama4
+            "language_model.lm_head",    # florence2
         ),
 
         # Output norm
@@ -708,22 +718,27 @@ class TensorNameMap:
 
         MODEL_TENSOR.DEC_ATTN_NORM: (
             "decoder.block.{bid}.layer.0.layer_norm", # t5
+            "language_model.model.decoder.layers.{bid}.self_attn_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.DEC_ATTN_Q: (
             "decoder.block.{bid}.layer.0.SelfAttention.q", # t5
+            "language_model.model.decoder.layers.{bid}.self_attn.q_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_ATTN_K: (
             "decoder.block.{bid}.layer.0.SelfAttention.k", # t5
+            "language_model.model.decoder.layers.{bid}.self_attn.k_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_ATTN_V: (
             "decoder.block.{bid}.layer.0.SelfAttention.v", # t5
+            "language_model.model.decoder.layers.{bid}.self_attn.v_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_ATTN_OUT: (
             "decoder.block.{bid}.layer.0.SelfAttention.o", # t5
+            "language_model.model.decoder.layers.{bid}.self_attn.out_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_ATTN_REL_B: (
@@ -732,22 +747,27 @@ class TensorNameMap:
 
         MODEL_TENSOR.DEC_CROSS_ATTN_NORM: (
             "decoder.block.{bid}.layer.1.layer_norm", # t5
+            "language_model.model.decoder.layers.{bid}.encoder_attn_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.DEC_CROSS_ATTN_Q: (
             "decoder.block.{bid}.layer.1.EncDecAttention.q", # t5
+            "language_model.model.decoder.layers.{bid}.encoder_attn.q_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_CROSS_ATTN_K: (
             "decoder.block.{bid}.layer.1.EncDecAttention.k", # t5
+            "language_model.model.decoder.layers.{bid}.encoder_attn.k_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_CROSS_ATTN_V: (
             "decoder.block.{bid}.layer.1.EncDecAttention.v", # t5
+            "language_model.model.decoder.layers.{bid}.encoder_attn.v_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_CROSS_ATTN_OUT: (
             "decoder.block.{bid}.layer.1.EncDecAttention.o", # t5
+            "language_model.model.decoder.layers.{bid}.encoder_attn.out_proj", # florence2
         ),
 
         MODEL_TENSOR.DEC_CROSS_ATTN_REL_B: (
@@ -765,34 +785,42 @@ class TensorNameMap:
         MODEL_TENSOR.DEC_FFN_UP: (
             "decoder.block.{bid}.layer.2.DenseReluDense.wi",   # t5
             "decoder.block.{bid}.layer.2.DenseReluDense.wi_1", # flan-t5
+            "language_model.model.decoder.layers.{bid}.fc1", # florence2
         ),
 
         MODEL_TENSOR.DEC_FFN_DOWN: (
             "decoder.block.{bid}.layer.2.DenseReluDense.wo", # t5
+            "language_model.model.decoder.layers.{bid}.fc2", # florence2
         ),
 
         MODEL_TENSOR.DEC_OUTPUT_NORM: (
             "decoder.final_layer_norm", # t5
+            "language_model.model.decoder.layers.{bid}.final_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_NORM: (
             "encoder.block.{bid}.layer.0.layer_norm", # t5
+            "language_model.model.encoder.layers.{bid}.self_attn_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_Q: (
             "encoder.block.{bid}.layer.0.SelfAttention.q", # t5
+            "language_model.model.encoder.layers.{bid}.self_attn.q_proj", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_K: (
             "encoder.block.{bid}.layer.0.SelfAttention.k", # t5
+            "language_model.model.encoder.layers.{bid}.self_attn.k_proj", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_V: (
             "encoder.block.{bid}.layer.0.SelfAttention.v", # t5
+            "language_model.model.encoder.layers.{bid}.self_attn.v_proj", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_OUT: (
             "encoder.block.{bid}.layer.0.SelfAttention.o", # t5
+            "language_model.model.encoder.layers.{bid}.self_attn.out_proj", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_REL_B: (
@@ -810,16 +838,19 @@ class TensorNameMap:
         MODEL_TENSOR.ENC_FFN_UP: (
             "encoder.block.{bid}.layer.1.DenseReluDense.wi",   # t5
             "encoder.block.{bid}.layer.1.DenseReluDense.wi_1", # flan-t5
+            "language_model.model.encoder.layers.{bid}.fc1",   # florence2
         ),
 
         MODEL_TENSOR.ENC_FFN_DOWN: (
             "encoder.block.{bid}.layer.1.DenseReluDense.wo", # t5
+            "language_model.model.encoder.layers.{bid}.fc2", # florence2
         ),
 
         ############################################################################
         # TODO: these do not belong to block_mappings_cfg - move them to mappings_cfg
         MODEL_TENSOR.ENC_OUTPUT_NORM: (
             "encoder.final_layer_norm", # t5
+            "language_model.model.encoder.layers.{bid}.final_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.CLS: (
@@ -898,6 +929,14 @@ class TensorNameMap:
         MODEL_TENSOR.V_MMPROJ: (
             "multi_modal_projector.linear_{bid}",
             "visual.merger.mlp.{bid}", # qwen2vl
+            "image_projection", # florence2
+            "image_proj_norm", # florence2
+            # florence2 TODO
+            "visual_temporal_embed.pos_idx_to_embed", 
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.conv1.fn.dw",
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.conv2.fn.dw",
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.conv1.fn.dw",
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.conv2.fn.dw",
         ),
 
         MODEL_TENSOR.V_MMPROJ_FC: (
@@ -927,6 +966,7 @@ class TensorNameMap:
             "vision_tower.patch_conv", # pixtral
             "vision_model.patch_embedding.linear", # llama 4
             "visual.patch_embed.proj", # qwen2vl
+            "vision_tower.convs.{bid}.proj", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_EMBD_POS: (
@@ -934,6 +974,8 @@ class TensorNameMap:
             "vpm.embeddings.position_embedding",
             "model.vision_model.embeddings.position_embedding", # SmolVLM
             "vision_model.positional_embedding_vlm", # llama 4
+            "image_pos_embed.row_embeddings", # florence2
+            "image_pos_embed.column_embeddings", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_Q: (
@@ -943,6 +985,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.q_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.q_proj", # pixtral
             "visual.blocks.{bid}.attn.q", # qwen2vl, generated
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.q", #florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.q", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_Q_NORM: (
@@ -956,6 +1000,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.k_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.k_proj", # pixtral
             "visual.blocks.{bid}.attn.k", # qwen2vl, generated
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.k", # florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.k", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_K_NORM: (
@@ -969,6 +1015,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.v_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.v_proj", # pixtral
             "visual.blocks.{bid}.attn.v", # qwen2vl, generated
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.v", #florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.v", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_INPUT_NORM: (
@@ -979,6 +1027,9 @@ class TensorNameMap:
             "vision_tower.transformer.layers.{bid}.attention_norm", # pixtral
             "vision_model.model.layers.{bid}.input_layernorm", # llama4
             "visual.blocks.{bid}.norm1", # qwen2vl
+            "vision_tower.convs.{bid}.norm", # florence2
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.norm", #florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.norm", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_O: (
@@ -989,6 +1040,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.o_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.o_proj", # pixtral
             "visual.blocks.{bid}.attn.proj", # qwen2vl
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.proj", #florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.proj", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_POST_ATTN_NORM: (
@@ -999,6 +1052,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.post_attention_layernorm", # llama4
             "vision_tower.transformer.layers.{bid}.ffn_norm", # pixtral
             "visual.blocks.{bid}.norm2", # qwen2vl
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.norm", # florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.norm", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_FFN_UP: (
@@ -1009,6 +1064,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.mlp.fc1", # llama4
             "visual.blocks.{bid}.mlp.fc1", # qwen2vl
             "visual.blocks.{bid}.mlp.up_proj", # qwen2.5vl
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.fn.net.fc1", # florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.fn.net.fc1", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_FFN_GATE: (
@@ -1024,6 +1081,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.mlp.fc2", # llama4
             "visual.blocks.{bid}.mlp.fc2", # qwen2vl
             "visual.blocks.{bid}.mlp.down_proj", # qwen2.5vl
+            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.fn.net.fc2", # florence2
+            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.fn.net.fc2", # florence2
         ),
 
         MODEL_TENSOR.V_LAYER_SCALE_1: (
