@@ -6033,66 +6033,103 @@ class UltravoxAudioModel(MmprojModel):
 
         return [(self.map_tensor_name(name), data_torch)]
 
-
 @ModelBase.register("Florence2ForConditionalGeneration")
-class Florence2Model(MmprojModel):
-    # model_arch = gguf.MODEL_ARCH.FLORENCE2
+class Florence2Model(TextModel):
+    model_arch = gguf.MODEL_ARCH.FLORENCE2
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.shared_token_embeddings_found = False
 
+    def set_vocab(self):  
+        try:
+            self._set_vocab_sentencepiece()
+        except FileNotFoundError:
+            self._set_vocab_gpt2()
+  
+    def set_gguf_parameters(self):
+        if (n_ctx := self.find_hparam(["max_position_embeddings"], optional=True)) is None:
+            logger.warning("Couldn't find context length in config.json, assuming default value of 1024")
+            n_ctx = 1024
+        self.gguf_writer.add_context_length(n_ctx)
+
+        self.gguf_writer.add_embedding_length(self.hparams["d_model"])
+        self.gguf_writer.add_feed_forward_length(self.hparams["decoder_ffn_dim"])  # encoder_ffn_dim == decoder_ffn_dim
+        self.gguf_writer.add_block_count(self.hparams["decoder_layers"])           # encoder_layers == decoder_layers
+        self.gguf_writer.add_head_count(self.hparams["decoder_attention_heads"])   # encoder_heads == decoder_heads
+
+        head_dim = self.hparams["d_model"] // self.hparams["decoder_attention_heads"]
+        self.gguf_writer.add_key_length(head_dim)
+        self.gguf_writer.add_value_length(head_dim)
+
+        self.gguf_writer.add_layer_norm_eps(self.hparams.get("layer_norm_epsilon", 1e-6))
+        self.gguf_writer.add_decoder_start_token_id(self.hparams.get("decoder_start_token_id", 2))
+        self.gguf_writer.add_vocab_size(self.hparams["vocab_size"])
+        self.gguf_writer.add_file_type(self.ftype)
+  
+    def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:  
+        del bid  # unused  
+          
+        # 跳过vision相关的tensor  
+        if any(vision_prefix in name for vision_prefix in [  
+            "vision_tower.", "image_projection.", "image_proj_norm",
+            "image_pos_embed", "visual_temporal_embed"
+        ]):  
+            logger.debug(f"Skipping vision tensor {name!r}")  
+            return []  
+          
+        # 处理language model部分的tensor名称,可以不处理直接用原来名称
+        # if "language_model." in name:  
+        #     name = name.replace("language_model.", "")  
+          
+        # 处理共享token嵌入，类似T5的处理方式  
+        if name in ["language_model.model.encoder.embed_tokens.weight", "language_model.model.decoder.embed_tokens.weight", 
+                    "language_model.model.shared.weight"]:  
+            if not self.shared_token_embeddings_found:  
+                name = "language_model.model.shared.weight"  
+                self.shared_token_embeddings_found = True  
+            else:  
+                logger.debug(f"Skipping shared tensor {name!r} in safetensors so that convert can end normally.")  
+                return []  
+          
+        return [(self.map_tensor_name(name), data_torch)]
+
+    
+@ModelBase.register("Florence2ForConditionalGeneration")
+class Florence2VisionModel(MmprojModel):
+    model_arch = gguf.MODEL_ARCH.MMPROJ
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         vision_config = self.global_config.get("vision_config", {})
 
         # 显式设置 image_size（config中没有则使用默认）
-        vision_config["image_size"] = vision_config.get("image_size", 560)
+        self.hparams["image_size"] = vision_config.get("image_size", 560)
 
         # patch_size: Florence2 使用多尺度 → 取第一个或最大值
         patch_sizes = vision_config.get("patch_size", [7, 3, 3, 3])
-        vision_config["patch_size"] = patch_sizes[0] if isinstance(patch_sizes, list) else patch_sizes
+        self.hparams["patch_size"] = patch_sizes[0] if isinstance(patch_sizes, list) else patch_sizes
 
         # 统一映射字段（flatten结构适配 GGUF）
         # 多个 stage 的配置取总和或最大值
-        vision_config["num_hidden_layers"] = sum(vision_config.get("depths", []))  # e.g. [1, 1, 9, 1] → 12
-        vision_config["num_attention_heads"] = max(vision_config.get("num_heads", []))  # e.g. max([4,8,16,32]) → 32
-        vision_config["hidden_size"] = vision_config.get("dim_embed", [])[ -1 ] if vision_config.get("dim_embed") else 1024
-        vision_config["intermediate_size"] = vision_config["hidden_size"] * 4  # 通常设置为 4 × hidden_size
-
-        # 更新回 hparams（影响基类使用）
-        self.hparams.update(vision_config)
-        self.global_config["vision_config"] = vision_config
-
-        # 修改 text_config 以兼容 GGUF 元数据写入
-        text_config = self.global_config.get("text_config", {})
-        text_config["hidden_size"] = text_config.get("d_model", 768)
-        text_config["intermediate_size"] = text_config.get("encoder_ffn_dim", 3072)
-        text_config["num_attention_heads"] = text_config.get("encoder_attention_heads", 12)
-        text_config["vocab_size"] = text_config.get("vocab_size", 51289)
-        text_config["encoder_layers"] = text_config.get("encoder_layers", 6)
-        text_config["decoder_layers"] = text_config.get("decoder_layers", 6)
-        text_config["max_position_embeddings"] = text_config.get("max_position_embeddings", 1024)
-
-        self.global_config["text_config"] = text_config
+        self.hparams["num_hidden_layers"] = sum(vision_config.get("depths", []))  # e.g. [1, 1, 9, 1] → 12
+        self.hparams["num_attention_heads"] = max(vision_config.get("num_heads", []))  # e.g. max([4,8,16,32]) → 32
+        self.hparams["hidden_size"] = vision_config.get("dim_embed", [])[ -1 ] if vision_config.get("dim_embed") else 1024
+        self.hparams["intermediate_size"] = vision_config["hidden_size"] * 4  # 通常设置为 4 × hidden_size
 
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
-
-        # 添加 encoder-decoder 架构相关元数据
-        text_config = self.global_config.get("text_config", {})
-
-        self.gguf_writer.add_vocab_size(text_config["vocab_size"])
-        self.gguf_writer.add_embedding_length(text_config["hidden_size"])
-        self.gguf_writer.add_feed_forward_length(text_config["intermediate_size"])
-        self.gguf_writer.add_head_count(text_config["num_attention_heads"])
-        # self.gguf_writer.add_layer_count(text_config["encoder_layers"])  # 可换成 encoder + decoder 总和
-        self.gguf_writer.add_context_length(text_config["max_position_embeddings"])
-
         # 添加 Florence2 的 projector 类型（如 Qwen2VL 处理方式）
+        # TODO
+        hparams = self.hparams
         self.gguf_writer.add_clip_projector_type(gguf.VisionProjectorType.FLORENCE2)
+        self.gguf_writer.add_vision_attention_layernorm_eps(self.hparams.get("rms_norm_eps", 1e-6))
+
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         del bid  # unused
 
         # 处理视觉模型中 qkv 合并权重
-        if name.startswith("vision_tower.") or name.startswith("vision_model."):
+        if name.startswith("vision_tower."):
             if ".qkv." in name:
                 if data_torch.ndim == 2:
                     c3, _ = data_torch.shape
@@ -6107,21 +6144,20 @@ class Florence2Model(MmprojModel):
                 ]
             else:
                 return [(self.map_tensor_name(name), data_torch)]
-
-        # 文本模型部分
-        elif name.startswith("language_model.") or name.startswith("text_model."):
-            return [(self.map_tensor_name(name), data_torch)]
-
+            
         # 投影层或连接器
-        elif "projection" in name or "connector" in name:
+        elif "projection" in name or name.startswith("image_proj_norm") or name.startswith("image_pos_embed") or name.startswith("visual_temporal_embed"):
             return [(self.map_tensor_name(name), data_torch)]
 
         # 其他跳过
         return []
     
     def tensor_force_quant(self, name: str, new_name: str, bid: int | None, n_dims: int) -> gguf.GGMLQuantizationType | bool:  
+        del bid, name, n_dims  # unused
         # 位置嵌入保持F32精度  
-        if "pos_embed" in new_name or "temporal_embed" in new_name:  
+        if "image_pos_embed" in new_name or "visual_temporal_embed" in new_name:  
+            return gguf.GGMLQuantizationType.F32  
+        if "embed_tokens" in new_name or "embed_positions" in new_name:  
             return gguf.GGMLQuantizationType.F32  
           
         # patch embedding可以使用F16  

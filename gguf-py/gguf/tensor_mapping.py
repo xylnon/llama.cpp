@@ -33,8 +33,8 @@ class TensorNameMap:
             "language_model.model.embed_tokens",         # llama4
             "language_model.model.shared",               # florence2
             # TODO
-            "language_model.model.encoder.embed_tokens", # florence2
-            "language_model.model.decoder.embed_tokens", # florence2
+            # "language_model.model.encoder.embed_tokens", # florence2
+            # "language_model.model.decoder.embed_tokens", # florence2
         ),
 
         # Token type embeddings
