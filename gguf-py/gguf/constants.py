@@ -2068,6 +2068,21 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.ENC_FFN_DOWN,
         MODEL_TENSOR.ENC_OUTPUT_NORM,
 
+        # # 视觉编码器张量  TODO
+        # MODEL_TENSOR.V_ENC_EMBD_PATCH,  
+        # MODEL_TENSOR.V_ENC_EMBD_POS,  
+        # MODEL_TENSOR.V_ENC_ATTN_Q,
+        # MODEL_TENSOR.V_ENC_ATTN_K,
+        # MODEL_TENSOR.V_ENC_ATTN_V,
+        # MODEL_TENSOR.V_ENC_INPUT_NORM,
+        # MODEL_TENSOR.V_ENC_ATTN_O,
+        # MODEL_TENSOR.V_ENC_POST_ATTN_NORM,
+        # MODEL_TENSOR.V_ENC_FFN_UP,
+        # MODEL_TENSOR.V_ENC_FFN_DOWN,
+  
+        # # 多模态投影张量  
+        # MODEL_TENSOR.V_MMPROJ,
+
     ],
     # TODO
 }

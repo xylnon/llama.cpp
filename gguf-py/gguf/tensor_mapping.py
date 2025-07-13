@@ -933,10 +933,10 @@ class TensorNameMap:
             "image_proj_norm", # florence2
             # florence2 TODO
             "visual_temporal_embed.pos_idx_to_embed", 
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.conv1.fn.dw",
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.conv2.fn.dw",
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.conv1.fn.dw",
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.conv2.fn.dw",
+            "vision_tower.blocks.{bid}.spatial_block.conv1.fn.dw",
+            "vision_tower.blocks.{bid}.spatial_block.conv2.fn.dw",
+            "vision_tower.blocks.{bid}.channel_block.conv1.fn.dw",
+            "vision_tower.blocks.{bid}.channel_block.conv2.fn.dw",
         ),
 
         MODEL_TENSOR.V_MMPROJ_FC: (
@@ -985,8 +985,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.q_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.q_proj", # pixtral
             "visual.blocks.{bid}.attn.q", # qwen2vl, generated
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.q", #florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.q", #florence2
+            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.q", #florence2
+            "vision_tower.blocks.{bid}.channel_block.channel_attn.fn.q", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_Q_NORM: (
@@ -1000,8 +1000,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.k_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.k_proj", # pixtral
             "visual.blocks.{bid}.attn.k", # qwen2vl, generated
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.k", # florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.k", # florence2
+            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.k", # florence2
+            "vision_tower.blocks.{bid}.channel_block.channel_attn.fn.k", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_K_NORM: (
@@ -1015,8 +1015,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.v_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.v_proj", # pixtral
             "visual.blocks.{bid}.attn.v", # qwen2vl, generated
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.v", #florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.v", #florence2
+            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.v", #florence2
+            "vision_tower.blocks.{bid}.channel_block.channel_attn.fn.v", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_INPUT_NORM: (
@@ -1028,8 +1028,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.input_layernorm", # llama4
             "visual.blocks.{bid}.norm1", # qwen2vl
             "vision_tower.convs.{bid}.norm", # florence2
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.norm", #florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.norm", #florence2
+            "vision_tower.blocks.{bid}.spatial_block.window_attn.norm", #florence2
+            "vision_tower.blocks.{bid}.channel_block.channel_attn.norm", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_ATTN_O: (
@@ -1040,8 +1040,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.self_attn.o_proj", # llama4
             "vision_tower.transformer.layers.{bid}.attention.o_proj", # pixtral
             "visual.blocks.{bid}.attn.proj", # qwen2vl
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.window_attn.fn.proj", #florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.channel_attn.fn.proj", #florence2
+            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.proj", #florence2
+            "vision_tower.blocks.{bid}.channel_block.channel_attn.fn.proj", #florence2
         ),
 
         MODEL_TENSOR.V_ENC_POST_ATTN_NORM: (
@@ -1052,8 +1052,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.post_attention_layernorm", # llama4
             "vision_tower.transformer.layers.{bid}.ffn_norm", # pixtral
             "visual.blocks.{bid}.norm2", # qwen2vl
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.norm", # florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.norm", # florence2
+            "vision_tower.blocks.{bid}.spatial_block.ffn.norm", # florence2
+            "vision_tower.blocks.{bid}.channel_block.ffn.norm", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_FFN_UP: (
@@ -1064,8 +1064,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.mlp.fc1", # llama4
             "visual.blocks.{bid}.mlp.fc1", # qwen2vl
             "visual.blocks.{bid}.mlp.up_proj", # qwen2.5vl
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.fn.net.fc1", # florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.fn.net.fc1", # florence2
+            "vision_tower.blocks.{bid}.spatial_block.ffn.fn.net.fc1", # florence2
+            "vision_tower.blocks.{bid}.channel_block.ffn.fn.net.fc1", # florence2
         ),
 
         MODEL_TENSOR.V_ENC_FFN_GATE: (
@@ -1081,8 +1081,8 @@ class TensorNameMap:
             "vision_model.model.layers.{bid}.mlp.fc2", # llama4
             "visual.blocks.{bid}.mlp.fc2", # qwen2vl
             "visual.blocks.{bid}.mlp.down_proj", # qwen2.5vl
-            "vision_tower.blocks.{bid1}.{bid2}.spatial_block.ffn.fn.net.fc2", # florence2
-            "vision_tower.blocks.{bid1}.{bid2}.channel_block.ffn.fn.net.fc2", # florence2
+            "vision_tower.blocks.{bid}.spatial_block.ffn.fn.net.fc2", # florence2
+            "vision_tower.blocks.{bid}.channel_block.ffn.fn.net.fc2", # florence2
         ),
 
         MODEL_TENSOR.V_LAYER_SCALE_1: (

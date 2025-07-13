@@ -1139,7 +1139,8 @@ class MmprojModel(ModelBase):
         if "audio_config" not in self.hparams:
             self.hparams["audio_config"] = {}
         text_config = {**self.hparams, **self.hparams["text_config"]}
-        self.n_embd_text = text_config.get("hidden_size", text_config.get("n_embd", 0))
+        self.n_embd_text = text_config.get("hidden_size", text_config.get("n_embd", text_config.get("d_model", 0)))
+        # self.n_embd_text = text_config.get("hidden_size", text_config.get("n_embd", 0))
         assert self.n_embd_text > 0, "n_embd not found in hparams"
 
         # move vision config to the top level, while preserving the original hparams in global_config
@@ -1152,7 +1153,9 @@ class MmprojModel(ModelBase):
         else:
             raise ValueError("vision_config / audio_config not found in hparams")
 
-        self.block_count = self.find_hparam(["n_layers", "num_hidden_layers", "n_layer", "num_layers", "depth"])
+        self.block_count = self.find_hparam(["n_layers", "num_hidden_layers", "n_layer", "num_layers", "depth", "depths"])
+        if isinstance(self.block_count, list):
+            self.block_count = sum(self.block_count)
         self.tensor_map = gguf.get_tensor_name_map(gguf.MODEL_ARCH.MMPROJ, self.block_count)
 
         # load preprocessor config
@@ -6127,9 +6130,16 @@ class Florence2VisionModel(MmprojModel):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         del bid  # unused
-
+        
         # 处理视觉模型中 qkv 合并权重
         if name.startswith("vision_tower."):
+            # 检查是否是 vision block 双 index，例如 blocks.0.1.xxx
+            match = re.match(r"(.*blocks\.)(\d+)\.(\d+)(\..*)", name)
+            if match:
+                prefix, idx1, idx2, suffix = match.groups()
+                # 合并 idx1 和 idx2 成一个整数编号
+                new_bid = int(idx1) * 10 + int(idx2)  # 或者 *100, 取决于你最大层数
+                name = f"{prefix}{new_bid}{suffix}"
             if ".qkv." in name:
                 if data_torch.ndim == 2:
                     c3, _ = data_torch.shape
