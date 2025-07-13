@@ -6036,7 +6036,7 @@ class UltravoxAudioModel(MmprojModel):
 
         return [(self.map_tensor_name(name), data_torch)]
 
-@ModelBase.register("Florence2ForConditionalGeneration")
+@ModelBase.register("Florence2ForConditionalGeneration", "DocfusionForConditionalGeneration")
 class Florence2Model(TextModel):
     model_arch = gguf.MODEL_ARCH.FLORENCE2
     def __init__(self, *args, **kwargs):
@@ -6079,7 +6079,7 @@ class Florence2Model(TextModel):
         ]):  
             logger.debug(f"Skipping vision tensor {name!r}")  
             return []  
-            
+
         if name.endswith("final_logits_bias"):
             return []  # 忽略不导出这个张量
           
@@ -6100,7 +6100,7 @@ class Florence2Model(TextModel):
         return [(self.map_tensor_name(name), data_torch)]
 
     
-@ModelBase.register("Florence2ForConditionalGeneration")
+@ModelBase.register("Florence2ForConditionalGeneration", "DocfusionForConditionalGeneration")
 class Florence2VisionModel(MmprojModel):
     model_arch = gguf.MODEL_ARCH.MMPROJ
     
