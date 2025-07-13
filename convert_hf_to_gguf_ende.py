@@ -6074,11 +6074,14 @@ class Florence2Model(TextModel):
           
         # 跳过vision相关的tensor  
         if any(vision_prefix in name for vision_prefix in [  
-            "vision_tower.", "image_projection.", "image_proj_norm",
+            "vision_tower.", "image_projection", "image_proj_norm",
             "image_pos_embed", "visual_temporal_embed"
         ]):  
             logger.debug(f"Skipping vision tensor {name!r}")  
             return []  
+            
+        if name.endswith("final_logits_bias"):
+            return []  # 忽略不导出这个张量
           
         # 处理language model部分的tensor名称,可以不处理直接用原来名称
         # if "language_model." in name:  
