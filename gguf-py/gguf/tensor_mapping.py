@@ -33,8 +33,8 @@ class TensorNameMap:
             "language_model.model.embed_tokens",         # llama4
             "language_model.model.shared",               # florence2
             # TODO
-            # "language_model.model.encoder.embed_tokens", # florence2
-            # "language_model.model.decoder.embed_tokens", # florence2
+            "language_model.model.encoder.embed_tokens", # florence2
+            "language_model.model.decoder.embed_tokens", # florence2
         ),
 
         # Token type embeddings
@@ -53,8 +53,9 @@ class TensorNameMap:
             "model.pre_ln",               # rwkv7
             "model.layers.0.pre_norm",    # rwkv7
             "backbone.norm",              # wavtokenizer
-            "language_model.model.encoder.layernorm_embedding", # flornece2
-            "language_model.model.decoder.layernorm_embedding", # flornece2
+            # TODO
+            # "language_model.model.encoder.layernorm_embedding", # flornece2
+            # "language_model.model.decoder.layernorm_embedding", # flornece2
         ),
 
         # Position embeddings
@@ -63,8 +64,8 @@ class TensorNameMap:
             "embeddings.position_embeddings",  # bert
             "wpe",                             # gpt2
             # TODO
-            "language_model.model.encoder.embed_positions", # florence2
-            "language_model.model.decoder.embed_positions", # florence2
+            # "language_model.model.encoder.embed_positions", # florence2
+            # "language_model.model.decoder.embed_positions", # florence2
         ),
 
         # Output
@@ -144,6 +145,9 @@ class TensorNameMap:
             "rwkv.blocks.{bid}.ln1",                                # rwkv6
             "model.layers.{bid}.ln1",                               # rwkv7
             "model.layers.{bid}.input_layernorm",                   # llama4
+            # TODO
+            # "language_model.model.encoder.layers.{bid}.final_layer_norm", # florence2
+            # "language_model.model.decoder.layers.{bid}.final_layer_norm", # florence2
         ),
 
         # Attention norm 2
@@ -795,7 +799,7 @@ class TensorNameMap:
 
         MODEL_TENSOR.DEC_OUTPUT_NORM: (
             "decoder.final_layer_norm", # t5
-            "language_model.model.decoder.layers.{bid}.final_layer_norm", # florence2
+            # "language_model.model.decoder.layers.{bid}.final_layer_norm", # florence2
         ),
 
         MODEL_TENSOR.ENC_ATTN_NORM: (
@@ -846,11 +850,32 @@ class TensorNameMap:
             "language_model.model.encoder.layers.{bid}.fc2", # florence2
         ),
 
+        MODEL_TENSOR.ENC_FINAL_NORM: (
+            "language_model.model.encoder.layers.{bid}.final_layer_norm", # florence2
+        ),
+        MODEL_TENSOR.DEC_FINAL_NORM: (
+            "language_model.model.decoder.layers.{bid}.final_layer_norm", # florence2
+        ),
+
         ############################################################################
         # TODO: these do not belong to block_mappings_cfg - move them to mappings_cfg
         MODEL_TENSOR.ENC_OUTPUT_NORM: (
             "encoder.final_layer_norm", # t5
-            "language_model.model.encoder.layers.{bid}.final_layer_norm", # florence2
+        ),
+
+        MODEL_TENSOR.ENC_POS_EMBD: (
+            "language_model.model.encoder.embed_positions", # florence2
+        ),
+        MODEL_TENSOR.DEC_POS_EMBD: (
+            "language_model.model.decoder.embed_positions", # florence2
+        ),
+
+        MODEL_TENSOR.ENC_TOKEN_EMBD_NORM: (
+            "language_model.model.encoder.layernorm_embedding", # flornece2
+        ),
+
+        MODEL_TENSOR.DEC_TOKEN_EMBD_NORM: (
+            "language_model.model.decoder.layernorm_embedding", # flornece2
         ),
 
         MODEL_TENSOR.CLS: (

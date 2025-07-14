@@ -475,6 +475,14 @@ class MODEL_TENSOR(IntEnum):
     ENC_FFN_DOWN         = auto()
     ENC_FFN_UP           = auto()
     ENC_OUTPUT_NORM      = auto()
+    # TODO
+    ENC_POS_EMBD         = auto()
+    DEC_POS_EMBD         = auto()
+    ENC_FINAL_NORM       = auto()
+    DEC_FINAL_NORM       = auto()
+    ENC_TOKEN_EMBD_NORM  = auto()
+    DEC_TOKEN_EMBD_NORM  = auto()
+
     CLS                  = auto() # classifier
     CLS_OUT              = auto() # classifier output projection
     CONV1D               = auto()
@@ -756,6 +764,14 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.ENC_FFN_DOWN:              "enc.blk.{bid}.ffn_down",
     MODEL_TENSOR.ENC_FFN_UP:                "enc.blk.{bid}.ffn_up",
     MODEL_TENSOR.ENC_OUTPUT_NORM:           "enc.output_norm",
+    # TODO
+    MODEL_TENSOR.ENC_POS_EMBD:              "enc.pos_embd",
+    MODEL_TENSOR.DEC_POS_EMBD:              "dec.pos_embd",
+    MODEL_TENSOR.ENC_FINAL_NORM:            "enc.blk.{bid}.final_norm",
+    MODEL_TENSOR.DEC_FINAL_NORM:            "dec.blk.{bid}.final_norm",
+    MODEL_TENSOR.ENC_TOKEN_EMBD_NORM:       "enc.token_embd_norm",
+    MODEL_TENSOR.DEC_TOKEN_EMBD_NORM:       "dec.token_embd_norm",
+
     MODEL_TENSOR.CLS:                       "cls",
     MODEL_TENSOR.CLS_OUT:                   "cls.output",
     MODEL_TENSOR.CONV1D:                    "conv1d",
@@ -2068,6 +2084,16 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.ENC_FFN_DOWN,
         MODEL_TENSOR.ENC_OUTPUT_NORM,
 
+        MODEL_TENSOR.ENC_POS_EMBD,
+        MODEL_TENSOR.ENC_FINAL_NORM,
+        MODEL_TENSOR.ENC_TOKEN_EMBD_NORM,
+        MODEL_TENSOR.DEC_POS_EMBD,
+        MODEL_TENSOR.DEC_FINAL_NORM,
+        MODEL_TENSOR.DEC_TOKEN_EMBD_NORM,
+
+        MODEL_TENSOR.ATTN_NORM,
+        MODEL_TENSOR.TOKEN_EMBD_NORM,
+
         # # 视觉编码器张量  TODO
         # MODEL_TENSOR.V_ENC_EMBD_PATCH,  
         # MODEL_TENSOR.V_ENC_EMBD_POS,  
@@ -2082,9 +2108,7 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
   
         # # 多模态投影张量  
         # MODEL_TENSOR.V_MMPROJ,
-
     ],
-    # TODO
 }
 
 # tensors that will not be serialized

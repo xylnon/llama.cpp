@@ -472,7 +472,14 @@ class TextModel(ModelBase):
             # move the text_config to the root level
             self.hparams = {**self.hparams, **self.hparams["text_config"]}
 
-        self.block_count = self.find_hparam(["n_layers", "num_hidden_layers", "n_layer", "num_layers"])
+        # self.block_count = self.find_hparam(["n_layers", "num_hidden_layers", "n_layer", "num_layers"])
+        try:
+            self.block_count = self.find_hparam(["n_layers", "num_hidden_layers", "n_layer", "num_layers"])
+        except KeyError:
+            if "decoder_layers" in self.hparams:
+                self.block_count = self.hparams["decoder_layers"]
+            else:
+                raise KeyError("could not find any of: ['n_layers', 'num_hidden_layers', 'n_layer', 'num_layers', 'decoder_layers']")
         self.tensor_map = gguf.get_tensor_name_map(self.model_arch, self.block_count)
 
     @classmethod
@@ -6043,11 +6050,59 @@ class Florence2Model(TextModel):
         super().__init__(*args, **kwargs)
         self.shared_token_embeddings_found = False
 
-    def set_vocab(self):  
+    def set_vocab(self):
         try:
             self._set_vocab_sentencepiece()
         except FileNotFoundError:
             self._set_vocab_gpt2()
+
+    
+    def set_vocab(self):
+        import os
+        import json
+        from tokenizers import Tokenizer
+
+        tokenizer_json = os.path.join(self.dir_model, "tokenizer.json")
+        if not os.path.exists(tokenizer_json):
+            raise FileNotFoundError(f"tokenizer.json not found in {self.dir_model}")
+
+        # 加载 Florence2 的 fast tokenizer.json
+        tokenizer = Tokenizer.from_file(tokenizer_json)
+        vocab_size = tokenizer.get_vocab_size()
+        tokens = [tokenizer.id_to_token(i) for i in range(vocab_size)]
+
+        # 默认 token 类型全部设为 0
+        toktypes = [0] * vocab_size
+
+        # 可以自定义 tokpre（前缀，用于 compatibility）
+        tokpre = ""
+
+        self.vocab_size = vocab_size
+        self.gguf_writer.add_token_type_count(1)
+
+        # Phantom 空格兼容
+        def phantom(tok):
+            if tok.startswith("[") and tok.endswith("]"):
+                return tok
+            if tok.startswith("##"):
+                return tok[2:]
+            return "\u2581" + tok
+
+        tokens = list(map(phantom, tokens))
+
+        # 添加到 GGUF 中
+        self.gguf_writer.add_tokenizer_model("florence2")
+        self.gguf_writer.add_tokenizer_pre(tokpre)
+        self.gguf_writer.add_token_list(tokens)
+        self.gguf_writer.add_token_types(toktypes)
+
+        # 添加特殊 token（如 [PAD], [CLS] 等）
+        special_vocab = gguf.SpecialVocab(self.dir_model, n_vocab=len(tokens))
+        special_vocab.add_to_gguf(self.gguf_writer)
+
+        # 如果你用不到 scores，可以不添加
+        # scores = [0.0] * len(tokens)
+        # self.gguf_writer.add_tokenizer(tokens, scores=scores, token_types=toktypes)
   
     def set_gguf_parameters(self):
         if (n_ctx := self.find_hparam(["max_position_embeddings"], optional=True)) is None:
