@@ -6049,13 +6049,6 @@ class Florence2Model(TextModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.shared_token_embeddings_found = False
-
-    def set_vocab(self):
-        try:
-            self._set_vocab_sentencepiece()
-        except FileNotFoundError:
-            self._set_vocab_gpt2()
-
     
     def set_vocab(self):
         import os
