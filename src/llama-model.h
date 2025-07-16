@@ -1,16 +1,16 @@
 #pragma once
 
-#include "llama.h"
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "llama-arch.h"
 #include "llama-graph.h"
 #include "llama-hparams.h"
 #include "llama-memory.h"
 #include "llama-vocab.h"
-
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
+#include "llama.h"
 
 struct llama_cparams;
 struct llama_ubatch;
@@ -90,8 +90,8 @@ enum llm_type {
     LLM_TYPE_16x3_8B,
     LLM_TYPE_10B_128x3_66B,
     LLM_TYPE_57B_A14B,
-    LLM_TYPE_17B_16E, // llama4 Scout
-    LLM_TYPE_17B_128E, // llama4 Maverick
+    LLM_TYPE_17B_16E,   // llama4 Scout
+    LLM_TYPE_17B_128E,  // llama4 Maverick
     LLM_TYPE_30B_A3B,
     LLM_TYPE_235B_A22B,
 };
@@ -212,9 +212,9 @@ struct llama_layer {
     struct ggml_tensor * ffn_norm_enc     = nullptr;
 
     // ff
-    struct ggml_tensor * ffn_gate     = nullptr; // w1
-    struct ggml_tensor * ffn_down     = nullptr; // w2
-    struct ggml_tensor * ffn_up       = nullptr; // w3
+    struct ggml_tensor * ffn_gate     = nullptr;  // w1
+    struct ggml_tensor * ffn_down     = nullptr;  // w2
+    struct ggml_tensor * ffn_up       = nullptr;  // w3
     struct ggml_tensor * ffn_gate_enc = nullptr;
     struct ggml_tensor * ffn_down_enc = nullptr;
     struct ggml_tensor * ffn_up_enc   = nullptr;
@@ -232,10 +232,10 @@ struct llama_layer {
     struct ggml_tensor * ffn_up_shexp       = nullptr;
 
     // ff bias
-    struct ggml_tensor * ffn_gate_b = nullptr;
-    struct ggml_tensor * ffn_down_b = nullptr; // b2
-    struct ggml_tensor * ffn_up_b   = nullptr; // b3
-    struct ggml_tensor * ffn_act    = nullptr;
+    struct ggml_tensor * ffn_gate_b      = nullptr;
+    struct ggml_tensor * ffn_down_b      = nullptr;  // b2
+    struct ggml_tensor * ffn_up_b        = nullptr;  // b3
+    struct ggml_tensor * ffn_act         = nullptr;
     struct ggml_tensor * ffn_exp_probs_b = nullptr;
 
     // mamba proj
@@ -277,18 +277,18 @@ struct llama_layer {
     struct ggml_tensor * time_mix_gate         = nullptr;
 
     // rwkv7
-    struct ggml_tensor * time_mix_w0         = nullptr;
-    struct ggml_tensor * time_mix_a0         = nullptr;
-    struct ggml_tensor * time_mix_a1         = nullptr;
-    struct ggml_tensor * time_mix_a2         = nullptr;
-    struct ggml_tensor * time_mix_v0         = nullptr;
-    struct ggml_tensor * time_mix_v1         = nullptr;
-    struct ggml_tensor * time_mix_v2         = nullptr;
-    struct ggml_tensor * time_mix_g1         = nullptr;
-    struct ggml_tensor * time_mix_g2         = nullptr;
-    struct ggml_tensor * time_mix_k_k        = nullptr;
-    struct ggml_tensor * time_mix_k_a        = nullptr;
-    struct ggml_tensor * time_mix_r_k        = nullptr;
+    struct ggml_tensor * time_mix_w0  = nullptr;
+    struct ggml_tensor * time_mix_a0  = nullptr;
+    struct ggml_tensor * time_mix_a1  = nullptr;
+    struct ggml_tensor * time_mix_a2  = nullptr;
+    struct ggml_tensor * time_mix_v0  = nullptr;
+    struct ggml_tensor * time_mix_v1  = nullptr;
+    struct ggml_tensor * time_mix_v2  = nullptr;
+    struct ggml_tensor * time_mix_g1  = nullptr;
+    struct ggml_tensor * time_mix_g2  = nullptr;
+    struct ggml_tensor * time_mix_k_k = nullptr;
+    struct ggml_tensor * time_mix_k_a = nullptr;
+    struct ggml_tensor * time_mix_r_k = nullptr;
 
     struct ggml_tensor * time_mix_ln     = nullptr;
     struct ggml_tensor * time_mix_ln_b   = nullptr;
@@ -335,6 +335,9 @@ struct llama_model {
     struct ggml_tensor * tok_norm   = nullptr;
     struct ggml_tensor * tok_norm_b = nullptr;
 
+    struct ggml_tensor * pos_embd_enc = nullptr;
+    struct ggml_tensor * pos_embd_dec = nullptr;
+
     struct ggml_tensor * output_norm     = nullptr;
     struct ggml_tensor * output_norm_b   = nullptr;
     struct ggml_tensor * output          = nullptr;
@@ -369,11 +372,11 @@ struct llama_model {
     explicit llama_model(const struct llama_model_params & params);
     ~llama_model();
 
-    void load_stats  (llama_model_loader & ml);
-    void load_arch   (llama_model_loader & ml);
+    void load_stats(llama_model_loader & ml);
+    void load_arch(llama_model_loader & ml);
     void load_hparams(llama_model_loader & ml);
-    void load_vocab  (llama_model_loader & ml);
-    bool load_tensors(llama_model_loader & ml); // returns false if cancelled by progress_callback
+    void load_vocab(llama_model_loader & ml);
+    bool load_tensors(llama_model_loader & ml);  // returns false if cancelled by progress_callback
 
     std::string arch_name() const;
     std::string type_name() const;
@@ -398,7 +401,7 @@ struct llama_model {
 
     const struct ggml_tensor * get_tensor(const char * name) const;
 
-    float get_rope_freq_base (const llama_cparams & cparams, int il) const;
+    float get_rope_freq_base(const llama_cparams & cparams, int il) const;
     float get_rope_freq_scale(const llama_cparams & cparams, int il) const;
 
     ggml_tensor * get_rope_factors(const llama_cparams & cparams, int il) const;
@@ -408,12 +411,9 @@ struct llama_model {
     llama_memory_i * create_memory(const llama_memory_params & params, llama_cparams & cparams) const;
 
     // TODO: move this to new llm_arch_model_i interface
-    llm_graph_result_ptr build_graph(
-            const llm_graph_params & params,
-                       ggml_cgraph * gf,
-                    llm_graph_type   type) const;
+    llm_graph_result_ptr build_graph(const llm_graph_params & params, ggml_cgraph * gf, llm_graph_type type) const;
 
-private:
+  private:
     struct impl;
     std::unique_ptr<impl> pimpl;
 };

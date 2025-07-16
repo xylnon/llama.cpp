@@ -871,11 +871,11 @@ class TensorNameMap:
         ),
 
         MODEL_TENSOR.ENC_TOKEN_EMBD_NORM: (
-            "language_model.model.encoder.layernorm_embedding", # flornece2
+            "language_model.model.encoder.layernorm_embedding", # florence2
         ),
 
         MODEL_TENSOR.DEC_TOKEN_EMBD_NORM: (
-            "language_model.model.decoder.layernorm_embedding", # flornece2
+            "language_model.model.decoder.layernorm_embedding", # florence2
         ),
 
         MODEL_TENSOR.CLS: (
