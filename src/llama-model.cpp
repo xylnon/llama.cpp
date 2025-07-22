@@ -4376,19 +4376,21 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         auto & layer = layers[i];
 
                         // === Encoder 层 ===
-                        layer.attn_norm_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_NORM, "weight", i), { n_embd }, 0);
-                        layer.wq_enc =
-                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_Q, "weight", i), { n_embd, n_embd_k_gqa }, 0);
-                        layer.wk_enc =
-                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_K, "weight", i), { n_embd, n_embd_k_gqa }, 0);
-                        layer.wv_enc =
-                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_V, "weight", i), { n_embd, n_embd_v_gqa }, 0);
-                        layer.wo_enc =
-                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_OUT, "weight", i), { n_embd_v_gqa, n_embd }, 0);
+                        layer.attn_norm_enc =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_NORM, "weight", i), { n_embd }, TENSOR_NOT_REQUIRED);
+                        layer.wq_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_Q, "weight", i), { n_embd, n_embd_k_gqa },
+                                                     TENSOR_NOT_REQUIRED);
+                        layer.wk_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_K, "weight", i), { n_embd, n_embd_k_gqa },
+                                                     TENSOR_NOT_REQUIRED);
+                        layer.wv_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_V, "weight", i), { n_embd, n_embd_v_gqa },
+                                                     TENSOR_NOT_REQUIRED);
+                        layer.wo_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_OUT, "weight", i), { n_embd_v_gqa, n_embd },
+                                                     TENSOR_NOT_REQUIRED);
 
-                        layer.ffn_up_enc = create_tensor(tn(LLM_TENSOR_ENC_FFN_UP, "weight", i), { n_embd, n_ff }, 0);
-                        layer.ffn_down_enc =
-                            create_tensor(tn(LLM_TENSOR_ENC_FFN_DOWN, "weight", i), { n_ff, n_embd }, 0);
+                        layer.ffn_up_enc   = create_tensor(tn(LLM_TENSOR_ENC_FFN_UP, "weight", i), { n_embd, n_ff },
+                                                           TENSOR_NOT_REQUIRED);
+                        layer.ffn_down_enc = create_tensor(tn(LLM_TENSOR_ENC_FFN_DOWN, "weight", i), { n_ff, n_embd },
+                                                           TENSOR_NOT_REQUIRED);
 
                         // 如果存在 final_norm（例如 pre-LN），可以加载
                         create_tensor(tn(LLM_TNSOR_ENC_FINAL_NORM, "weight", i), { n_embd }, TENSOR_NOT_REQUIRED);
@@ -11237,46 +11239,42 @@ struct llm_build_florence2_enc : public llm_graph_context {
     llm_build_florence2_enc(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf) :
         llm_graph_context(params) {
         const int64_t n_embd_head = hparams.n_embd_head_v;
-
         GGML_ASSERT(n_embd_head == hparams.n_embd_head_k);
 
         ggml_tensor * cur;
         ggml_tensor * inpL;
 
-        inpL = build_inp_embd(model.tok_embd);
+        // Step 1: 词嵌入
+        inpL = build_inp_embd(model.tok_embd);  // [n_tokens, n_embd]
+        // cb(inpL, "tok_embd", -1);
+        // ggml_tensor * pos_bucket_dec = build_inp_pos_bucket_dec();
 
-        ggml_tensor * pos_bucket_enc = build_inp_pos_bucket_enc();
-
-        auto * inp_attn = build_attn_inp_no_cache();
+        // Step 2: Florence2 没有 RoPE / Pos bias，可跳过 pos_bias 构建
+        auto * inp_attn = build_attn_inp_no_cache();  // dummy attention input，用于构建图时自动处理输入结构
 
         for (int il = 0; il < n_layer; ++il) {
             ggml_tensor * inpSA = inpL;
 
-            // norm
+            // norm before attention
             cur = build_norm(inpL, model.layers[il].attn_norm_enc, NULL, LLM_NORM_RMS, il);
             cb(cur, "attn_norm", il);
 
-            // self-attention
+            // attention 部分
             {
                 ggml_tensor * Qcur = build_lora_mm(model.layers[il].wq_enc, cur);
-                cb(Qcur, "Qcur", il);
-
                 ggml_tensor * Kcur = build_lora_mm(model.layers[il].wk_enc, cur);
-                cb(Kcur, "Kcur", il);
-
                 ggml_tensor * Vcur = build_lora_mm(model.layers[il].wv_enc, cur);
+
+                cb(Qcur, "Qcur", il);
+                cb(Kcur, "Kcur", il);
                 cb(Vcur, "Vcur", il);
 
                 Qcur = ggml_reshape_3d(ctx0, Qcur, n_embd_head, n_head, n_tokens);
                 Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
                 Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
 
-                ggml_tensor * attn_rel_b =
-                    model.layers[il].attn_rel_b_enc ? model.layers[il].attn_rel_b_enc : model.layers[0].attn_rel_b_enc;
-                ggml_tensor * kq_b = build_pos_bias(pos_bucket_enc, attn_rel_b);
-
-                cur = build_attn(inp_attn, gf, model.layers[il].wo_enc, nullptr, Qcur, Kcur, Vcur, kq_b, nullptr, 1.0f,
-                                 il);
+                cur = build_attn(inp_attn, gf, model.layers[il].wo_enc, nullptr, Qcur, Kcur, Vcur,
+                                 /*pos_bias*/ nullptr, /*mask*/ nullptr, 1.0f, il);
                 cb(cur, "kqv_out", il);
             }
 
@@ -11338,8 +11336,8 @@ struct llm_build_florence2_dec : public llm_graph_context {
 
         inpL = build_inp_embd(model.tok_embd);
 
-        ggml_tensor * embd_enc       = build_inp_cross_embd();
-        ggml_tensor * pos_bucket_dec = build_inp_pos_bucket_dec();
+        ggml_tensor * embd_enc = build_inp_cross_embd();
+        // ggml_tensor * pos_bucket_dec = build_inp_pos_bucket_dec();
 
         const int64_t n_outputs_enc = embd_enc->ne[1];
 
@@ -11368,11 +11366,11 @@ struct llm_build_florence2_dec : public llm_graph_context {
                 Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
                 Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
 
-                ggml_tensor * attn_rel_b =
-                    model.layers[il].attn_rel_b ? model.layers[il].attn_rel_b : model.layers[0].attn_rel_b;
-                ggml_tensor * kq_b = build_pos_bias(pos_bucket_dec, attn_rel_b);
+                // ggml_tensor * attn_rel_b =
+                //     model.layers[il].attn_rel_b ? model.layers[il].attn_rel_b : model.layers[0].attn_rel_b;
+                // ggml_tensor * kq_b = build_pos_bias(pos_bucket_dec, attn_rel_b);
 
-                cur = build_attn(inp_attn_self, gf, model.layers[il].wo, model.layers[il].bo, Qcur, Kcur, Vcur, kq_b,
+                cur = build_attn(inp_attn_self, gf, model.layers[il].wo, model.layers[il].bo, Qcur, Kcur, Vcur, nullptr,
                                  nullptr, 1.0f, il);
                 cb(cur, "kqv_out", il);
             }
