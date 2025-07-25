@@ -6084,7 +6084,7 @@ class Florence2Model(TextModel):
         tokens = list(map(phantom, tokens))
 
         # 添加到 GGUF 中
-        self.gguf_writer.add_tokenizer_model("florence2")
+        self.gguf_writer.add_tokenizer_model("t5") # 用t5的
         self.gguf_writer.add_tokenizer_pre(tokpre)
         self.gguf_writer.add_token_list(tokens)
         self.gguf_writer.add_token_types(toktypes)
