@@ -6049,6 +6049,7 @@ class Florence2Model(TextModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.shared_token_embeddings_found = False
+        self.defer_set_context_length = True
     
     def set_vocab(self):
         import os
@@ -6061,47 +6062,63 @@ class Florence2Model(TextModel):
 
         # 加载 Florence2 的 fast tokenizer.json
         tokenizer = Tokenizer.from_file(tokenizer_json)
-        vocab_size = tokenizer.get_vocab_size()
-        tokens = [tokenizer.id_to_token(i) for i in range(vocab_size)]
 
-        # 默认 token 类型全部设为 0
-        toktypes = [0] * vocab_size
+        real_vocab_size = tokenizer.get_vocab_size()
+        vocab_size = self.hparams.get("vocab_size", real_vocab_size)
 
-        # 可以自定义 tokpre（前缀，用于 compatibility）
-        tokpre = ""
+        print(f"Florence2 tokenizer actual vocab_size: {real_vocab_size}, config vocab_size: {vocab_size}")
 
-        self.vocab_size = vocab_size
-        self.gguf_writer.add_token_type_count(1)
+        tokens: list[bytes] = [f"[PAD{i}]".encode("utf-8") for i in range(vocab_size)]
+        scores: list[float] = [-10000.0] * vocab_size
+        toktypes: list[int] = [0] * vocab_size  # Florence 没用特殊类型的话就全设为 0
 
-        # Phantom 空格兼容
-        def phantom(tok):
-            if tok.startswith("[") and tok.endswith("]"):
-                return tok
-            if tok.startswith("##"):
-                return tok[2:]
-            return "\u2581" + tok
+        for token_id in range(real_vocab_size):
+            tok = tokenizer.id_to_token(token_id)
+            if tok is None:
+                print(f"[WARN] Token id {token_id} -> None, using <unk>")
+                tok = "<unk>"
 
-        tokens = list(map(phantom, tokens))
+            tokens[token_id] = tok.encode("utf-8")
+            scores[token_id] = 0.0  # 没有 score 信息就默认 0
+            toktypes[token_id] = 0
 
-        # 添加到 GGUF 中
-        self.gguf_writer.add_tokenizer_model("t5") # 用t5的
-        self.gguf_writer.add_tokenizer_pre(tokpre)
+        # padding 以满足 vocab_size
+        if vocab_size > real_vocab_size:
+            pad_count = vocab_size - real_vocab_size
+            for i in range(1, pad_count + 1):
+                tokens[real_vocab_size + i - 1] = f"[PAD{i}]".encode("utf-8")
+                scores[real_vocab_size + i - 1] = -1000.0
+                toktypes[real_vocab_size + i - 1] = 0
+
+        # 写入 GGUF
+        self.gguf_writer.add_tokenizer_model("t5")
+        self.gguf_writer.add_tokenizer_pre("default")
         self.gguf_writer.add_token_list(tokens)
+        self.gguf_writer.add_token_scores(scores)
         self.gguf_writer.add_token_types(toktypes)
 
-        # 添加特殊 token（如 [PAD], [CLS] 等）
+        # 如果 Florence2 没有这些正则信息，可以跳过这三项
+        self.gguf_writer.add_add_space_prefix(True)
+        self.gguf_writer.add_remove_extra_whitespaces(True)
+        self.gguf_writer.add_precompiled_charsmap(b"")
+
+        # 添加特殊 token
         special_vocab = gguf.SpecialVocab(self.dir_model, n_vocab=len(tokens))
         special_vocab.add_to_gguf(self.gguf_writer)
 
-        # 如果你用不到 scores，可以不添加
-        # scores = [0.0] * len(tokens)
-        # self.gguf_writer.add_tokenizer(tokens, scores=scores, token_types=toktypes)
+        # Florence 默认不加 bos，加 eos（参考 T5）
+        self.gguf_writer.add_add_bos_token(False)
+        self.gguf_writer.add_add_eos_token(True)
+
   
     def set_gguf_parameters(self):
-        if (n_ctx := self.find_hparam(["max_position_embeddings"], optional=True)) is None:
-            logger.warning("Couldn't find context length in config.json, assuming default value of 1024")
-            n_ctx = 1024
-        self.gguf_writer.add_context_length(n_ctx)
+        # if (n_ctx := self.find_hparam(["max_position_embeddings"], optional=True)) is None:
+        #     logger.warning("Couldn't find context length in config.json, assuming default value of 1024")
+        #     n_ctx = 1024
+        # self.gguf_writer.add_context_length(1026)
+
+        # fallback: wait for modify_tensors() to determine n_ctx
+        self.defer_set_context_length = True
 
         self.gguf_writer.add_embedding_length(self.hparams["d_model"])
         self.gguf_writer.add_feed_forward_length(self.hparams["decoder_ffn_dim"])  # encoder_ffn_dim == decoder_ffn_dim
@@ -6119,7 +6136,12 @@ class Florence2Model(TextModel):
   
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:  
         del bid  # unused  
-          
+        
+        if self.defer_set_context_length and ".encoder.embed_positions." in name:
+            self.gguf_writer.add_context_length(data_torch.shape[0])
+            print(f"context_length:{data_torch.shape[0]}")
+            # import sys
+            # sys.exit("✅ 已写入 context_length，程序中断退出。")
         # 跳过vision相关的tensor  
         if any(vision_prefix in name for vision_prefix in [  
             "vision_tower.", "image_projection", "image_proj_norm",
@@ -6137,10 +6159,10 @@ class Florence2Model(TextModel):
           
         # 处理共享token嵌入，类似T5的处理方式  
         if name in ["language_model.model.encoder.embed_tokens.weight", "language_model.model.decoder.embed_tokens.weight", 
-                    "language_model.model.shared.weight"]:  
+                    "language_model.model.shared.weight"]:
             if not self.shared_token_embeddings_found:  
-                name = "language_model.model.shared.weight"  
-                self.shared_token_embeddings_found = True  
+                name = "language_model.model.shared.weight"
+                self.shared_token_embeddings_found = True
             else:  
                 logger.debug(f"Skipping shared tensor {name!r} in safetensors so that convert can end normally.")  
                 return []  
@@ -6182,7 +6204,7 @@ class Florence2VisionModel(MmprojModel):
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         del bid  # unused
         
-        # 处理视觉模型中 qkv 合并权重
+        # 处理视觉模型中的权重
         if name.startswith("vision_tower."):
             # 检查是否是 vision block 双 index，例如 blocks.0.1.xxx
             match = re.match(r"(.*blocks\.)(\d+)\.(\d+)(\..*)", name)
