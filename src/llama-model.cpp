@@ -4355,9 +4355,11 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                     // 通用词嵌入 & 输出映射
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), { n_embd, n_vocab }, 0);
 
-                    output_norm     = create_tensor(tn(LLM_TNSOR_DEC_TOKEN_EMBD_NORM, "weight"), { n_embd }, 0);
+                    output_norm       = create_tensor(tn(LLM_TNSOR_DEC_TOKEN_EMBD_NORM, "weight"), { n_embd }, 0);
+                    output_norm_b     = create_tensor(tn(LLM_TNSOR_DEC_TOKEN_EMBD_NORM, "bias"), { n_embd }, 0);
                     // encoder 输出 norm
-                    output_norm_enc = create_tensor(tn(LLM_TNSOR_ENC_TOKEN_EMBD_NORM, "weight"), { n_embd }, 0);
+                    output_norm_enc   = create_tensor(tn(LLM_TNSOR_ENC_TOKEN_EMBD_NORM, "weight"), { n_embd }, 0);
+                    output_norm_enc_b = create_tensor(tn(LLM_TNSOR_ENC_TOKEN_EMBD_NORM, "bias"), { n_embd }, 0);
 
                     output = create_tensor(tn(LLM_TENSOR_OUTPUT, "weight"), { n_embd, n_vocab }, TENSOR_NOT_REQUIRED);
                     if (output == NULL) {
@@ -4378,45 +4380,74 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         // === Encoder 层 ===
                         layer.attn_norm_enc =
                             create_tensor(tn(LLM_TENSOR_ENC_ATTN_NORM, "weight", i), { n_embd }, TENSOR_NOT_REQUIRED);
+                        layer.attn_norm_enc_b =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_NORM, "bias", i), { n_embd }, TENSOR_NOT_REQUIRED);
                         layer.wq_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_Q, "weight", i), { n_embd, n_embd_k_gqa },
                                                      TENSOR_NOT_REQUIRED);
+                        layer.bq_enc =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_Q, "bias", i), { n_embd_k_gqa }, TENSOR_NOT_REQUIRED);
                         layer.wk_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_K, "weight", i), { n_embd, n_embd_k_gqa },
                                                      TENSOR_NOT_REQUIRED);
+                        layer.bk_enc =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_K, "bias", i), { n_embd_k_gqa }, TENSOR_NOT_REQUIRED);
                         layer.wv_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_V, "weight", i), { n_embd, n_embd_v_gqa },
                                                      TENSOR_NOT_REQUIRED);
+                        layer.bv_enc =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_V, "bias", i), { n_embd_k_gqa }, TENSOR_NOT_REQUIRED);
                         layer.wo_enc = create_tensor(tn(LLM_TENSOR_ENC_ATTN_OUT, "weight", i), { n_embd_v_gqa, n_embd },
                                                      TENSOR_NOT_REQUIRED);
+                        layer.bo_enc =
+                            create_tensor(tn(LLM_TENSOR_ENC_ATTN_OUT, "bias", i), { n_embd }, TENSOR_NOT_REQUIRED);
 
-                        layer.ffn_up_enc   = create_tensor(tn(LLM_TENSOR_ENC_FFN_UP, "weight", i), { n_embd, n_ff },
-                                                           TENSOR_NOT_REQUIRED);
+                        layer.ffn_up_enc = create_tensor(tn(LLM_TENSOR_ENC_FFN_UP, "weight", i), { n_embd, n_ff },
+                                                         TENSOR_NOT_REQUIRED);
+                        layer.ffn_up_enc_b =
+                            create_tensor(tn(LLM_TENSOR_ENC_FFN_UP, "bias", i), { n_ff }, TENSOR_NOT_REQUIRED);
                         layer.ffn_down_enc = create_tensor(tn(LLM_TENSOR_ENC_FFN_DOWN, "weight", i), { n_ff, n_embd },
                                                            TENSOR_NOT_REQUIRED);
+                        layer.ffn_down_enc_b =
+                            create_tensor(tn(LLM_TENSOR_ENC_FFN_DOWN, "bias", i), { n_embd }, TENSOR_NOT_REQUIRED);
 
                         // 如果存在 final_norm（例如 pre-LN），可以加载
                         create_tensor(tn(LLM_TNSOR_ENC_FINAL_NORM, "weight", i), { n_embd }, TENSOR_NOT_REQUIRED);
+                        create_tensor(tn(LLM_TNSOR_ENC_FINAL_NORM, "bias", i), { n_embd }, TENSOR_NOT_REQUIRED);
 
                         // === Decoder 层 ===
-                        layer.attn_norm = create_tensor(tn(LLM_TENSOR_DEC_ATTN_NORM, "weight", i), { n_embd }, 0);
+                        layer.attn_norm   = create_tensor(tn(LLM_TENSOR_DEC_ATTN_NORM, "weight", i), { n_embd }, 0);
+                        layer.attn_norm_b = create_tensor(tn(LLM_TENSOR_DEC_ATTN_NORM, "bias", i), { n_embd }, 0);
                         layer.wq = create_tensor(tn(LLM_TENSOR_DEC_ATTN_Q, "weight", i), { n_embd, n_embd_k_gqa }, 0);
+                        layer.bq = create_tensor(tn(LLM_TENSOR_DEC_ATTN_Q, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wk = create_tensor(tn(LLM_TENSOR_DEC_ATTN_K, "weight", i), { n_embd, n_embd_k_gqa }, 0);
+                        layer.bk = create_tensor(tn(LLM_TENSOR_DEC_ATTN_K, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wv = create_tensor(tn(LLM_TENSOR_DEC_ATTN_V, "weight", i), { n_embd, n_embd_v_gqa }, 0);
+                        layer.bv = create_tensor(tn(LLM_TENSOR_DEC_ATTN_V, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wo = create_tensor(tn(LLM_TENSOR_DEC_ATTN_OUT, "weight", i), { n_embd_v_gqa, n_embd }, 0);
+                        layer.bo = create_tensor(tn(LLM_TENSOR_DEC_ATTN_OUT, "bias", i), { n_embd }, 0);
 
                         layer.attn_norm_cross =
                             create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_NORM, "weight", i), { n_embd }, 0);
+                        layer.attn_norm_cross_b =
+                            create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_NORM, "bias", i), { n_embd }, 0);
                         layer.wq_cross =
                             create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_Q, "weight", i), { n_embd, n_embd_k_gqa }, 0);
+                        layer.bq_cross = create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_Q, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wk_cross =
                             create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_K, "weight", i), { n_embd, n_embd_k_gqa }, 0);
+                        layer.bk_cross = create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_K, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wv_cross =
                             create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_V, "weight", i), { n_embd, n_embd_v_gqa }, 0);
+                        layer.bv_cross = create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_V, "bias", i), { n_embd_k_gqa }, 0);
                         layer.wo_cross =
                             create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_OUT, "weight", i), { n_embd_v_gqa, n_embd }, 0);
+                        layer.bo_cross = create_tensor(tn(LLM_TENSOR_DEC_CROSS_ATTN_OUT, "bias", i), { n_embd }, 0);
 
-                        layer.ffn_up   = create_tensor(tn(LLM_TENSOR_DEC_FFN_UP, "weight", i), { n_embd, n_ff }, 0);
-                        layer.ffn_down = create_tensor(tn(LLM_TENSOR_DEC_FFN_DOWN, "weight", i), { n_ff, n_embd }, 0);
+                        layer.ffn_up     = create_tensor(tn(LLM_TENSOR_DEC_FFN_UP, "weight", i), { n_embd, n_ff }, 0);
+                        layer.ffn_up_b   = create_tensor(tn(LLM_TENSOR_DEC_FFN_UP, "bias", i), { n_ff }, 0);
+                        layer.ffn_down   = create_tensor(tn(LLM_TENSOR_DEC_FFN_DOWN, "weight", i), { n_ff, n_embd }, 0);
+                        layer.ffn_down_b = create_tensor(tn(LLM_TENSOR_DEC_FFN_DOWN, "bias", i), { n_embd }, 0);
 
                         create_tensor(tn(LLM_TNSOR_DEC_FINAL_NORM, "weight", i), { n_embd }, TENSOR_NOT_REQUIRED);
+                        create_tensor(tn(LLM_TNSOR_DEC_FINAL_NORM, "bias", i), { n_embd }, TENSOR_NOT_REQUIRED);
                     }
                 }
                 break;
@@ -11318,6 +11349,7 @@ struct llm_build_florence2_enc : public llm_graph_context {
 
         cb(cur, "result_norm", -1);
         res->t_embd = cur;
+        // GGML_ASSERT(cur != nullptr);
 
         ggml_build_forward_expand(gf, cur);
     }

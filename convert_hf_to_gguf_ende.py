@@ -6113,8 +6113,8 @@ class Florence2Model(TextModel):
   
     def set_gguf_parameters(self):
         # if (n_ctx := self.find_hparam(["max_position_embeddings"], optional=True)) is None:
-        #     logger.warning("Couldn't find context length in config.json, assuming default value of 1024")
-        #     n_ctx = 1024
+        #     logger.warning("Couldn't find context length in config.json, assuming default value of 1026")
+        #     n_ctx = 1026
         # self.gguf_writer.add_context_length(1026)
 
         # fallback: wait for modify_tensors() to determine n_ctx
