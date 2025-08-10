@@ -954,8 +954,8 @@ class TensorNameMap:
         MODEL_TENSOR.V_MMPROJ: (
             "multi_modal_projector.linear_{bid}",
             "visual.merger.mlp.{bid}", # qwen2vl
-            "image_projection", # florence2
-            "image_proj_norm", # florence2
+            
+            
             # florence2 TODO
             "visual_temporal_embed.pos_idx_to_embed", 
             "vision_tower.blocks.{bid}.spatial_block.conv1.fn.dw",
@@ -1133,10 +1133,12 @@ class TensorNameMap:
 
         MODEL_TENSOR.V_MM_INP_PROJ: (
             "multi_modal_projector.mm_input_projection",
+            "image_projection", # florence2
         ),
 
         MODEL_TENSOR.V_MM_INP_NORM: (
             "multi_modal_projector.norm",
+            "image_proj_norm", # florence2
         ),
 
         MODEL_TENSOR.V_MM_SOFT_EMB_NORM: (
