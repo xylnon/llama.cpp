@@ -6194,9 +6194,8 @@ class Florence2VisionModel(MmprojModel):
 
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
-        # 添加 Florence2 的 projector 类型（如 Qwen2VL 处理方式）
         # TODO
-        hparams = self.hparams
+        # hparams = self.hparams
         self.gguf_writer.add_clip_projector_type(gguf.VisionProjectorType.FLORENCE2)
         self.gguf_writer.add_vision_attention_layernorm_eps(self.hparams.get("rms_norm_eps", 1e-6))
 
