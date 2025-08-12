@@ -6202,36 +6202,87 @@ class Florence2VisionModel(MmprojModel):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         del bid  # unused
-        
-        # 处理视觉模型中的权重
+
+        if not hasattr(self, "_pos_embed_cache"):
+            self._pos_embed_cache = {}
+        if not hasattr(self, "_vt_merge_cache"):
+            self._vt_merge_cache = {}
+
+        # 处理 vision tower block
         if name.startswith("vision_tower."):
-            # 检查是否是 vision block 双 index，例如 blocks.0.1.xxx
-            match = re.match(r"(.*blocks\.)(\d+)\.(\d+)(\..*)", name)
+            match = re.match(r"(vision_tower\.blocks\.)(\d+)\.(\d+)\.(spatial_block|channel_block)\.(.*)", name)
             if match:
-                prefix, idx1, idx2, suffix = match.groups()
-                # 合并 idx1 和 idx2 成一个整数编号
-                new_bid = int(idx1) * 10 + int(idx2)  # 或者 *100, 取决于你最大层数
-                name = f"{prefix}{new_bid}{suffix}"
-            if ".qkv." in name:
-                if data_torch.ndim == 2:
-                    c3, _ = data_torch.shape
+                prefix, idx1, idx2, block_type, suffix = match.groups()
+                idx1, idx2 = int(idx1), int(idx2)
+
+                # 如果是 QKV，先拆分
+                tensors_to_store = []
+                if ".qkv." in suffix:
+                    if data_torch.ndim == 2:
+                        c3, _ = data_torch.shape
+                    else:
+                        c3 = data_torch.shape[0]
+                    assert c3 % 3 == 0, f"QKV tensor shape invalid: {data_torch.shape}"
+                    c = c3 // 3
+                    tensors_to_store = [
+                        (suffix.replace(".qkv.", ".q."), data_torch[:c]),
+                        (suffix.replace(".qkv.", ".k."), data_torch[c:2*c]),
+                        (suffix.replace(".qkv.", ".v."), data_torch[2*c:])
+                    ]
                 else:
-                    c3 = data_torch.shape[0]
-                assert c3 % 3 == 0, f"QKV tensor shape invalid: {data_torch.shape}"
-                c = c3 // 3
-                return [
-                    (self.map_tensor_name(name.replace(".qkv.", ".q.")), data_torch[:c]),
-                    (self.map_tensor_name(name.replace(".qkv.", ".k.")), data_torch[c:2*c]),
-                    (self.map_tensor_name(name.replace(".qkv.", ".v.")), data_torch[2*c:]),
-                ]
-            else:
-                return [(self.map_tensor_name(name), data_torch)]
-            
-        # 投影层或连接器
-        elif "projection" in name or name.startswith("image_proj_norm") or name.startswith("image_pos_embed") or name.startswith("visual_temporal_embed"):
+                    tensors_to_store = [(suffix, data_torch)]
+
+                # 缓存（idx1, block_type, suffix）
+                for sub_suffix, sub_tensor in tensors_to_store:
+                    key = (idx1, block_type, sub_suffix)
+                    if key not in self._vt_merge_cache:
+                        self._vt_merge_cache[key] = {}
+                    self._vt_merge_cache[key][idx2] = sub_tensor
+
+                return []  # 暂不输出
+
             return [(self.map_tensor_name(name), data_torch)]
 
-        # 其他跳过
+        # 行列 pos_embed
+        elif "image_pos_embed.row_embeddings" in name:
+            self._pos_embed_cache["row"] = data_torch
+            return []
+        elif "image_pos_embed.column_embeddings" in name:
+            self._pos_embed_cache["col"] = data_torch
+            return []
+
+        if "row" in self._pos_embed_cache and "col" in self._pos_embed_cache:
+            row_emb = self._pos_embed_cache.pop("row")  # (50, 512)
+            col_emb = self._pos_embed_cache.pop("col")  # (50, 512)
+
+            H, dim = row_emb.shape
+            W, dim2 = col_emb.shape
+            assert dim == dim2, "Row/Col embedding dim mismatch"
+
+            pos_emb_tensor = torch.stack([row_emb, col_emb], dim=0)  
+            print("pos_emb_tensor.shape:", pos_emb_tensor.shape)
+
+            return [(self.map_tensor_name("image_pos_embed.weight"), pos_emb_tensor)]
+
+        # 遇到 image_proj_norm 时触发合并输出
+        if name.startswith("image_proj_norm"):
+            outputs = []
+            for (idx1, block_type, suffix), parts in self._vt_merge_cache.items():
+                try:
+                    merged = torch.stack([parts[i] for i in sorted(parts.keys())], dim=0)
+                except Exception as e:
+                    raise RuntimeError(f"Error merging {idx1}-{block_type}-{suffix}: {e}")
+                merged_name = f"vision_tower.blocks.{idx1}.{block_type}.{suffix}"
+                outputs.append((self.map_tensor_name(merged_name), merged))
+            self._vt_merge_cache.clear()
+
+            outputs.append((self.map_tensor_name(name), data_torch))
+            return outputs
+
+        # projection / connector
+        elif "projection" in name or name.startswith("visual_temporal_embed"):
+            return [(self.map_tensor_name(name), data_torch)]
+
         return []
     
     def tensor_force_quant(self, name: str, new_name: str, bid: int | None, n_dims: int) -> gguf.GGMLQuantizationType | bool:  

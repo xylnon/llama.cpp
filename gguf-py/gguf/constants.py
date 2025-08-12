@@ -482,6 +482,18 @@ class MODEL_TENSOR(IntEnum):
     DEC_FINAL_NORM       = auto()
     ENC_TOKEN_EMBD_NORM  = auto()
     DEC_TOKEN_EMBD_NORM  = auto()
+    V_INPUT_PROJ         = auto()
+    V_INPUT_NORM         = auto()
+    V_SP_ATTN_Q          = auto()
+    V_SP_ATTN_K          = auto() 
+    V_SP_ATTN_V          = auto() 
+    V_SP_INPUT_NORM      = auto()     
+    V_SP_ATTN_O          = auto() 
+    V_SP_POST_ATTN_NORM  = auto() 
+    V_SP_FFN_UP          = auto() 
+    V_SP_FFN_DOWN        = auto() 
+    V_SP_LAYER_SCALE_1   = auto() 
+    V_SP_LAYER_SCALE_2   = auto()     
 
     CLS                  = auto() # classifier
     CLS_OUT              = auto() # classifier output projection
@@ -830,6 +842,20 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.V_RESMPL_QUERY:            "resampler.query",
     MODEL_TENSOR.V_TOK_EMBD_IMG_BREAK:      "v.token_embd.img_break", # pixtral
     MODEL_TENSOR.V_MM_PATCH_MERGER:         "mm.patch_merger", # mistral small 3.1
+    # TODO
+    MODEL_TENSOR.V_INPUT_PROJ:              "v.input.{bid}.proj",
+    MODEL_TENSOR.V_INPUT_NORM:              "v.input.{bid}.norm",
+    MODEL_TENSOR.V_SP_ATTN_Q:               "v.blk.sp.{bid}.attn_q",
+    MODEL_TENSOR.V_SP_ATTN_K:               "v.blk.sp.{bid}.attn_k",
+    MODEL_TENSOR.V_SP_ATTN_V:               "v.blk.sp.{bid}.attn_v",
+    MODEL_TENSOR.V_SP_INPUT_NORM:           "v.blk.sp.{bid}.ln1",
+    MODEL_TENSOR.V_SP_ATTN_O:               "v.blk.sp.{bid}.attn_out",
+    MODEL_TENSOR.V_SP_POST_ATTN_NORM:       "v.blk.sp.{bid}.ln2",
+    MODEL_TENSOR.V_SP_FFN_UP:               "v.blk.SP.{bid}.ffn_up",
+    MODEL_TENSOR.V_SP_FFN_DOWN:             "v.blk.sp.{bid}.ffn_down",
+    MODEL_TENSOR.V_SP_LAYER_SCALE_1:        "v.blk.sp.{bid}.ls1",
+    MODEL_TENSOR.V_SP_LAYER_SCALE_2:        "v.blk.sp.{bid}.ls2",
+
     # audio (mtmd)
     MODEL_TENSOR.A_ENC_EMBD_POS:            "a.position_embd",
     MODEL_TENSOR.A_ENC_CONV1D:              "a.conv1d.{bid}",
@@ -890,6 +916,20 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.V_RESMPL_QUERY,
         MODEL_TENSOR.V_TOK_EMBD_IMG_BREAK,
         MODEL_TENSOR.V_MM_PATCH_MERGER,
+        # TODO
+        MODEL_TENSOR.V_INPUT_PROJ,
+        MODEL_TENSOR.V_INPUT_NORM,
+        MODEL_TENSOR.V_SP_ATTN_Q,
+        MODEL_TENSOR.V_SP_ATTN_K,
+        MODEL_TENSOR.V_SP_ATTN_V,
+        MODEL_TENSOR.V_SP_INPUT_NORM,
+        MODEL_TENSOR.V_SP_ATTN_O,
+        MODEL_TENSOR.V_SP_POST_ATTN_NORM,
+        MODEL_TENSOR.V_SP_FFN_UP,
+        MODEL_TENSOR.V_SP_FFN_DOWN,
+        MODEL_TENSOR.V_SP_LAYER_SCALE_1,
+        MODEL_TENSOR.V_SP_LAYER_SCALE_2,
+
         # audio
         MODEL_TENSOR.A_ENC_EMBD_POS,
         MODEL_TENSOR.A_ENC_CONV1D,

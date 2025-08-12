@@ -1183,7 +1183,7 @@ int32_t llama_context::output_reserve(int32_t n_outputs) {
     bool has_embd   = cparams.embeddings && (cparams.pooling_type == LLAMA_POOLING_TYPE_NONE);
 
     // TODO: hacky enc-dec support
-    if (model.arch == LLM_ARCH_T5) {
+    if (model.arch == LLM_ARCH_T5 || model.arch == LLM_ARCH_FLORENCE2) {
         has_logits = true;
         has_embd   = true;
     }
