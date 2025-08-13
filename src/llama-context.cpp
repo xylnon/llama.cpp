@@ -834,7 +834,7 @@ int llama_context::encode(llama_batch & inp_batch) {
     ggml_backend_sched_reset(sched.get());
 
     // TODO: hacky solution
-    if (model.arch == LLM_ARCH_T5 && t_embd) {
+    if ((model.arch == LLM_ARCH_T5 || model.arch == LLM_ARCH_FLORENCE2) && t_embd) {
         //cross.t_embd = t_embd;
 
         synchronize();
