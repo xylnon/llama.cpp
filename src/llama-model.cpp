@@ -11274,16 +11274,25 @@ struct llm_build_florence2_enc : public llm_graph_context {
 
         ggml_tensor * cur;
         ggml_tensor * inpL;
+        // ggml_tensor * pos;
 
         // Step 1: 词嵌入
         inpL = build_inp_embd(model.tok_embd);  // [n_tokens, n_embd]
-        // cb(inpL, "tok_embd", -1);
+        cb(inpL, "tok_embd", -1);
         // ggml_tensor * pos_bucket_dec = build_inp_pos_bucket_dec();
+        // ggml_tensor * inp_pos = build_inp_pos();
+        // pos                   = ggml_get_rows(ctx0, model.pos_embd, inp_pos);
+        // cb(pos, "pos_embd", -1);
 
         // Step 2: Florence2 没有 RoPE / Pos bias，可跳过 pos_bias 构建
-        auto * inp_attn = build_attn_inp_no_cache();  // dummy attention input，用于构建图时自动处理输入结构
+        // 只有非 DocFusion 模型才需要注意力输入
+        auto * inp_attn = (model.name != "Docfusion") ? build_attn_inp_no_cache() : nullptr;
 
         for (int il = 0; il < n_layer; ++il) {
+            if (model.name == "Docfusion") {
+                break;
+            }
+
             ggml_tensor * inpSA = inpL;
 
             // norm before attention
