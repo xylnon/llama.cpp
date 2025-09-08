@@ -386,6 +386,12 @@ struct clip_vision_model {
     ggml_tensor * conv1d_3_proj_b = nullptr;
     ggml_tensor * conv1d_3_norm_w = nullptr;
     ggml_tensor * conv1d_3_norm_b = nullptr;
+    ggml_tensor * conv1d_4_proj_w = nullptr;
+    ggml_tensor * conv1d_4_proj_b = nullptr;
+    ggml_tensor * conv1d_4_norm_w = nullptr;
+    ggml_tensor * conv1d_4_norm_b = nullptr;
+
+    ggml_tensor * mm_input_norm_b = nullptr;
 };
 
 struct clip_ctx {
@@ -2570,21 +2576,26 @@ struct clip_model_loader {
                 {
                     // TODO florence2
                     vision_model.mm_input_proj_w = get_tensor(TN_MM_INP_PROJ);
-                    vision_model.mm_input_norm_w = get_tensor(TN_MM_INP_NORM, false);
+                    vision_model.mm_input_norm_w = get_tensor(string_format(TN_OUT_PROJ, "weight"), false);
+                    vision_model.mm_input_norm_b = get_tensor(string_format(TN_OUT_PROJ, "bias"), false);
 
-                    vision_model.conv1d_1_proj_w = get_tensor(string_format(TN_IN_PROJ, 1, "weight"));
-                    vision_model.conv1d_1_proj_b = get_tensor(string_format(TN_IN_PROJ, 1, "bias"));
+                    vision_model.conv1d_1_proj_w = get_tensor(string_format(TN_IN_PROJ, 0, "weight"));
+                    vision_model.conv1d_1_proj_b = get_tensor(string_format(TN_IN_PROJ, 0, "bias"));
                     vision_model.conv1d_2_proj_w = get_tensor(string_format(TN_IN_PROJ, 1, "weight"));
                     vision_model.conv1d_2_proj_b = get_tensor(string_format(TN_IN_PROJ, 1, "bias"));
-                    vision_model.conv1d_3_proj_w = get_tensor(string_format(TN_IN_PROJ, 1, "weight"));
-                    vision_model.conv1d_3_proj_b = get_tensor(string_format(TN_IN_PROJ, 1, "bias"));
+                    vision_model.conv1d_3_proj_w = get_tensor(string_format(TN_IN_PROJ, 2, "weight"));
+                    vision_model.conv1d_3_proj_b = get_tensor(string_format(TN_IN_PROJ, 2, "bias"));
+                    vision_model.conv1d_4_proj_w = get_tensor(string_format(TN_IN_PROJ, 3, "weight"));
+                    vision_model.conv1d_4_proj_b = get_tensor(string_format(TN_IN_PROJ, 3, "bias"));
 
-                    vision_model.conv1d_1_norm_w = get_tensor(string_format(TN_IN_NORM, 1, "weight"));
-                    vision_model.conv1d_1_norm_b = get_tensor(string_format(TN_IN_NORM, 1, "bias"));
+                    vision_model.conv1d_1_norm_w = get_tensor(string_format(TN_IN_NORM, 0, "weight"));
+                    vision_model.conv1d_1_norm_b = get_tensor(string_format(TN_IN_NORM, 0, "bias"));
                     vision_model.conv1d_2_norm_w = get_tensor(string_format(TN_IN_NORM, 1, "weight"));
                     vision_model.conv1d_2_norm_b = get_tensor(string_format(TN_IN_NORM, 1, "bias"));
-                    vision_model.conv1d_3_norm_w = get_tensor(string_format(TN_IN_NORM, 1, "weight"));
-                    vision_model.conv1d_3_norm_b = get_tensor(string_format(TN_IN_NORM, 1, "bias"));
+                    vision_model.conv1d_3_norm_w = get_tensor(string_format(TN_IN_NORM, 2, "weight"));
+                    vision_model.conv1d_3_norm_b = get_tensor(string_format(TN_IN_NORM, 2, "bias"));
+                    vision_model.conv1d_4_norm_w = get_tensor(string_format(TN_IN_NORM, 3, "weight"));
+                    vision_model.conv1d_4_norm_b = get_tensor(string_format(TN_IN_NORM, 3, "bias"));
 
                     for (int il = 0; il < hparams.n_layer; ++il) {
                         auto & layer = vision_model.layers[il];

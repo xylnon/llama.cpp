@@ -851,7 +851,7 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.V_SP_INPUT_NORM:           "v.blk.sp.{bid}.ln1",
     MODEL_TENSOR.V_SP_ATTN_O:               "v.blk.sp.{bid}.attn_out",
     MODEL_TENSOR.V_SP_POST_ATTN_NORM:       "v.blk.sp.{bid}.ln2",
-    MODEL_TENSOR.V_SP_FFN_UP:               "v.blk.SP.{bid}.ffn_up",
+    MODEL_TENSOR.V_SP_FFN_UP:               "v.blk.sp.{bid}.ffn_up",
     MODEL_TENSOR.V_SP_FFN_DOWN:             "v.blk.sp.{bid}.ffn_down",
     MODEL_TENSOR.V_SP_LAYER_SCALE_1:        "v.blk.sp.{bid}.ls1",
     MODEL_TENSOR.V_SP_LAYER_SCALE_2:        "v.blk.sp.{bid}.ls2",

@@ -269,10 +269,28 @@ class ModelBase:
 
             # use the first number-like part of the tensor name as the block id
             bid = None
-            for part in name.split("."):
-                if part.isdecimal():
-                    bid = int(part)
-                    break
+            if self.model_arch == gguf.MODEL_ARCH.MMPROJ and self.global_config['model_type'] == "florence2":  # 假设 Florence 有对应的架构枚举  
+                # Florence 模型特殊处理：提取两个索引  
+                indices = []  
+                for part in name.split("."):  
+                    if part.isdecimal():  
+                        indices.append(int(part))  
+                        if len(indices) == 2:  
+                            break  
+                if len(indices) >= 2:  
+                    if indices[0] == 0 or indices == 1:
+                        bid = indices[0]
+                    elif indices[0] == 2:
+                        bid = indices[0] + 2
+                    elif indices[0] == 3:
+                        bid = 11
+                elif len(indices) == 1:  
+                    bid = indices[0]  
+            else:
+                for part in name.split("."):
+                    if part.isdecimal():
+                        bid = int(part)
+                        break
 
             for new_name, data_torch in (self.modify_tensors(data_torch, name, bid)):
                 # TODO: why do we squeeze here?
@@ -6232,14 +6250,30 @@ class Florence2VisionModel(MmprojModel):
                 else:
                     tensors_to_store = [(suffix, data_torch)]
 
-                # 缓存（idx1, block_type, suffix）
-                for sub_suffix, sub_tensor in tensors_to_store:
-                    key = (idx1, block_type, sub_suffix)
-                    if key not in self._vt_merge_cache:
-                        self._vt_merge_cache[key] = {}
-                    self._vt_merge_cache[key][idx2] = sub_tensor
+                # # 缓存（idx1, block_type, suffix）
+                # for sub_suffix, sub_tensor in tensors_to_store:
+                #     key = (idx1, block_type, sub_suffix)
+                #     if key not in self._vt_merge_cache:
+                #         self._vt_merge_cache[key] = {}
+                #     self._vt_merge_cache[key][idx2] = sub_tensor
 
-                return []  # 暂不输出
+                # return []  # 暂不输出
+
+                # TODO 加入代码，把idx1和idx2合成一个idx，再直接输出
+                # 合成 idx：直接用 idx1*10 + idx2
+                outputs = []
+                new_idx = None
+                if idx1 == 1 or idx1 == 0:
+                    new_idx = idx1
+                elif idx1 == 2:
+                    new_idx = idx2 + 2
+                elif idx1 == 3:
+                    new_idx = 11
+                for sub_suffix, sub_tensor in tensors_to_store:
+                    merged_name = f"vision_tower.blocks.{new_idx}.{block_type}.{sub_suffix}"
+                    # print(merged_name)
+                    outputs.append((self.map_tensor_name(merged_name), sub_tensor))
+                return outputs
 
             return [(self.map_tensor_name(name), data_torch)]
 
@@ -6264,23 +6298,28 @@ class Florence2VisionModel(MmprojModel):
 
             return [(self.map_tensor_name("image_pos_embed.weight"), pos_emb_tensor)]
 
-        # 遇到 image_proj_norm 时触发合并输出
-        if name.startswith("image_proj_norm"):
-            outputs = []
-            for (idx1, block_type, suffix), parts in self._vt_merge_cache.items():
-                try:
-                    merged = torch.stack([parts[i] for i in sorted(parts.keys())], dim=0)
-                except Exception as e:
-                    raise RuntimeError(f"Error merging {idx1}-{block_type}-{suffix}: {e}")
-                merged_name = f"vision_tower.blocks.{idx1}.{block_type}.{suffix}"
-                outputs.append((self.map_tensor_name(merged_name), merged))
-            self._vt_merge_cache.clear()
+        # # 遇到 image_proj_norm 时触发合并输出
+        # if name.startswith("image_proj_norm"):
+        #     outputs = []
+        #     for (idx1, block_type, suffix), parts in self._vt_merge_cache.items():
+        #         try:
+        #             merged = torch.stack([parts[i] for i in sorted(parts.keys())], dim=0)
+        #         except Exception as e:
+        #             raise RuntimeError(f"Error merging {idx1}-{block_type}-{suffix}: {e}")
+        #         merged_name = f"vision_tower.blocks.{idx1}.{block_type}.{suffix}"
+        #         outputs.append((self.map_tensor_name(merged_name), merged))
+        #     self._vt_merge_cache.clear()
 
-            outputs.append((self.map_tensor_name(name), data_torch))
-            return outputs
+        #     outputs.append((self.map_tensor_name(name), data_torch))
+        #     return outputs
 
         # projection / connector
-        elif "projection" in name or name.startswith("visual_temporal_embed"):
+        if name.startswith("image_proj_norm"):
+            return [(self.map_tensor_name(name), data_torch)]
+        elif name.startswith("image_projection"):
+            return [(self.map_tensor_name("image_projection.weight"), data_torch)]
+        elif name.startswith("visual_temporal_embed"):
+            print(name)
             return [(self.map_tensor_name(name), data_torch)]
 
         return []

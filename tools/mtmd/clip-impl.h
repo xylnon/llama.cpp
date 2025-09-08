@@ -89,8 +89,9 @@
 #define TN_TOK_GLM_EOI     "adapter.eoi"                 // glm-edge (these embeddings are not in text model)
 
 // TODO
-#define TN_IN_PROJ        "%s.input.%d.proj"
-#define TN_IN_NORM        "%s.input.%d.norm"
+#define TN_OUT_PROJ       "mm.input_norm.%s"
+#define TN_IN_PROJ        "v.input.%d.proj.%s"
+#define TN_IN_NORM        "v.input.%d.norm.%s"
 #define TN_SP_ATTN_K      "%s.blk.sp.%d.attn_k.%s"
 #define TN_SP_ATTN_Q      "%s.blk.sp.%d.attn_q.%s"
 #define TN_SP_ATTN_V      "%s.blk.sp.%d.attn_v.%s"
