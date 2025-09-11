@@ -6195,6 +6195,7 @@ class Florence2VisionModel(MmprojModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         vision_config = self.global_config.get("vision_config", {})
+        self.original_vision_config = vision_config.copy()
 
         # 显式设置 image_size（config中没有则使用默认）
         self.hparams["image_size"] = vision_config.get("image_size", 560)
@@ -6216,6 +6217,8 @@ class Florence2VisionModel(MmprojModel):
         # hparams = self.hparams
         self.gguf_writer.add_clip_projector_type(gguf.VisionProjectorType.FLORENCE2)
         self.gguf_writer.add_vision_attention_layernorm_eps(self.hparams.get("rms_norm_eps", 1e-6))
+        vision_config = self.original_vision_config
+        self.gguf_writer.add_DavitVision(vision_config)
 
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
