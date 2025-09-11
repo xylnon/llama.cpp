@@ -254,6 +254,11 @@ struct clip_layer {
     ggml_tensor * sp_ff_up_b   = nullptr;
     ggml_tensor * sp_ff_down_w = nullptr;
     ggml_tensor * sp_ff_down_b = nullptr;
+
+    ggml_tensor * conv_proj_w = nullptr;
+    ggml_tensor * conv_proj_b = nullptr;
+    ggml_tensor * conv_norm_w = nullptr;
+    ggml_tensor * conv_norm_b = nullptr;
 };
 
 struct clip_vision_model {
@@ -265,6 +270,8 @@ struct clip_vision_model {
     ggml_tensor * patch_embeddings_1 =
         nullptr;  // second Conv2D kernel when we decouple Conv3D along temproal dimension (Qwen2VL)
     ggml_tensor * patch_embeddings_2 =
+        nullptr;  // second Conv2D kernel when we decouple Conv3D along temproal dimension (Qwen2VL)
+    ggml_tensor * patch_embeddings_3 =
         nullptr;  // second Conv2D kernel when we decouple Conv3D along temproal dimension (Qwen2VL)
 
     ggml_tensor * patch_bias          = nullptr;
@@ -810,47 +817,212 @@ struct clip_graph {
         return gf;
     }
 
+    ggml_tensor * build_davit_dual_attention(ggml_tensor * inp, int il) const {
+        const int   n_head      = hparams.n_head;
+        const int   n_embd      = hparams.n_embd;
+        const int   n_embd_head = n_embd / n_head;
+        const float kq_scale    = 1.0f / sqrtf(float(n_embd_head));
+
+        // 空间注意力分支 - 使用独立的QKV
+        ggml_tensor * spatial_attn = build_davit_spatial_attention(inp, kq_scale, il);
+
+        // 通道注意力分支 - 使用独立的QKV
+        ggml_tensor * channel_attn = build_davit_channel_attention(inp, kq_scale, il);
+
+        // 双注意力融合
+        ggml_tensor * fused_attn = build_davit_attention_fusion(spatial_attn, channel_attn, il);
+
+        return fused_attn;
+    }
+
+    ggml_tensor * build_davit_spatial_attention(ggml_tensor * inp, float kq_scale, int il) const {
+        const int n_head      = hparams.n_head;
+        const int n_embd_head = hparams.n_embd / n_head;
+
+        norm_type     norm_t    = NORM_TYPE_NORMAL;
+        ggml_tensor * cur       = inp;
+        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].sp_ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+
+        cur = ggml_add(ctx0, conv1_out, model.layers[il].sp_ls_1_b);
+
+        // layernorm1
+        cur = build_norm(cur, model.layers[il].sp_ln_1_w, model.layers[il].sp_ln_1_b, norm_t, eps, il);
+        cb(cur, "ln1_spatial", il);
+        // 空间注意力的独立QKV投影
+        ggml_tensor * q_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_q_w, inp);
+        ggml_tensor * k_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_k_w, inp);
+        ggml_tensor * v_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_v_w, inp);
+
+        if (model.layers[il].sp_q_b) {
+            q_spatial = ggml_add(ctx0, q_spatial, model.layers[il].sp_q_b);
+        }
+        if (model.layers[il].sp_k_b) {
+            k_spatial = ggml_add(ctx0, k_spatial, model.layers[il].sp_k_b);
+        }
+        if (model.layers[il].sp_v_b) {
+            v_spatial = ggml_add(ctx0, v_spatial, model.layers[il].sp_v_b);
+        }
+
+        // 重塑为多头格式
+        q_spatial = ggml_reshape_3d(ctx0, q_spatial, n_embd_head, n_head, q_spatial->ne[1]);
+        k_spatial = ggml_reshape_3d(ctx0, k_spatial, n_embd_head, n_head, k_spatial->ne[1]);
+        v_spatial = ggml_reshape_3d(ctx0, v_spatial, n_embd_head, n_head, v_spatial->ne[1]);
+
+        cb(q_spatial, "davit_q_spatial", il);
+        cb(k_spatial, "davit_k_spatial", il);
+        cb(v_spatial, "davit_v_spatial", il);
+
+        // 执行空间注意力计算
+        ggml_tensor * spatial_out =
+            build_attn(model.layers[il].sp_o_w, model.layers[il].sp_o_b, q_spatial, k_spatial, v_spatial,
+                       nullptr,  // kq_mask
+                       kq_scale, il);
+
+        spatial_out = ggml_add(ctx0, spatial_out, inp);
+        cb(spatial_out, "davit_spatial_attn", il);
+
+        // residual add
+        cur = ggml_add(ctx0, spatial_out, inp);
+        inp = cur;  // inp = residual
+
+        cb(cur, "ffn_inp_spatial", il);
+
+        // layernorm2
+        cur = build_norm(cur, model.layers[il].sp_ln_2_w, model.layers[il].sp_ln_2_b, norm_t, eps, il);
+        cb(cur, "ffn_inp_normed_spatial", il);
+
+        // ffn
+        cur = build_ffn(cur, model.layers[il].sp_ff_up_w, model.layers[il].sp_ff_up_b, model.layers[il].ff_gate_w,
+                        model.layers[il].ff_gate_b, model.layers[il].sp_ff_down_w, model.layers[il].sp_ff_down_b,
+                        hparams.ffn_op, il);
+
+        cb(cur, "ffn_out_spatial", il);
+
+        // residual 2
+        cur = ggml_add(ctx0, inp, cur);
+        cb(cur, "layer_out_spatial", il);
+
+        return cur;
+    }
+
+    ggml_tensor * build_davit_channel_attention(ggml_tensor * inp, float kq_scale, int il) const {
+        const int n_head      = hparams.n_head;
+        const int n_embd_head = hparams.n_embd / n_head;
+
+        norm_type     norm_t    = NORM_TYPE_NORMAL;
+        ggml_tensor * cur       = inp;
+        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+
+        cur = ggml_add(ctx0, conv1_out, model.layers[il].ls_1_b);
+        // layernorm1
+        cur = build_norm(inp, model.layers[il].ln_1_w, model.layers[il].ln_1_b, norm_t, eps, il);
+        cb(cur, "ln1_channel", il);
+
+        // 计算 Q, K, V 投影
+        ggml_tensor * q_cur = ggml_mul_mat(ctx0, model.layers[il].q_w, inp);
+        ggml_tensor * k_cur = ggml_mul_mat(ctx0, model.layers[il].k_w, inp);
+        ggml_tensor * v_cur = ggml_mul_mat(ctx0, model.layers[il].v_w, inp);
+
+        if (model.layers[il].q_b) {
+            q_cur = ggml_add(ctx0, q_cur, model.layers[il].q_b);
+        }
+        if (model.layers[il].k_b) {
+            k_cur = ggml_add(ctx0, k_cur, model.layers[il].k_b);
+        }
+        if (model.layers[il].v_b) {
+            v_cur = ggml_add(ctx0, v_cur, model.layers[il].v_b);
+        }
+
+        // 重塑为多头格式
+        q_cur = ggml_reshape_3d(ctx0, q_cur, n_embd_head, n_head, q_cur->ne[1]);
+        k_cur = ggml_reshape_3d(ctx0, k_cur, n_embd_head, n_head, k_cur->ne[1]);
+        v_cur = ggml_reshape_3d(ctx0, v_cur, n_embd_head, n_head, v_cur->ne[1]);
+        // 通道注意力：转置空间和通道维度
+        q_cur = ggml_permute(ctx0, q_cur, 1, 0, 2, 3);
+        k_cur = ggml_permute(ctx0, k_cur, 1, 0, 2, 3);
+        v_cur = ggml_permute(ctx0, v_cur, 1, 0, 2, 3);
+
+        q_cur = ggml_cont(ctx0, q_cur);
+        k_cur = ggml_cont(ctx0, k_cur);
+        v_cur = ggml_cont(ctx0, v_cur);
+
+        cb(q_cur, "davit_q_channel", il);
+        cb(k_cur, "davit_k_channel", il);
+        cb(v_cur, "davit_v_channel", il);
+
+        // 在通道维度上执行注意力
+        ggml_tensor * channel_out = build_attn(model.layers[il].o_w, model.layers[il].o_b, q_cur, k_cur, v_cur,
+                                               nullptr,  // kq_mask
+                                               kq_scale, il);
+
+        // 转置回原始维度
+        channel_out = ggml_permute(ctx0, channel_out, 1, 0, 2, 3);
+        channel_out = ggml_cont(ctx0, channel_out);
+
+        cb(channel_out, "davit_channel_attn", il);
+
+        // residual add
+        cur = ggml_add(ctx0, channel_out, inp);
+        inp = cur;  // inp = residual
+
+        cb(cur, "ffn_inp_channel", il);
+
+        // layernorm2
+        cur = build_norm(cur, model.layers[il].ln_2_w, model.layers[il].ln_2_b, norm_t, eps, il);
+        cb(cur, "ffn_inp_normed_channel", il);
+
+        // ffn
+        cur = build_ffn(cur, model.layers[il].ff_up_w, model.layers[il].ff_up_b, model.layers[il].ff_gate_w,
+                        model.layers[il].ff_gate_b, model.layers[il].ff_down_w, model.layers[il].ff_down_b,
+                        hparams.ffn_op, il);
+
+        cb(cur, "ffn_out_channel", il);
+
+        // residual 2
+        cur = ggml_add(ctx0, inp, cur);
+        cb(cur, "layer_out", il);
+
+        return cur;
+    }
+
+    ggml_tensor * build_davit_attention_fusion(ggml_tensor * spatial_attn, ggml_tensor * channel_attn, int il) const {
+        // 融合两个注意力分支
+        // 简单加法融合
+        ggml_tensor * fused = ggml_add(ctx0, spatial_attn, channel_attn);
+        cb(fused, "davit_add_fusion", il);
+        return fused;
+    }
+
     // TODO florence2
     ggml_cgraph * build_florence2() {
         // 基本前置检查（尽量与 build_qwen2vl 保持一致）
         GGML_ASSERT(model.patch_bias == nullptr);
         GGML_ASSERT(model.class_embedding == nullptr);
 
+        const int  conv_stride[4]  = { 4, 2, 2, 2 };
+        const int  conv_padding[4] = { 3, 1, 1, 1 };
         const int  batch_size      = 1;
         const bool use_window_attn = hparams.n_wa_pattern > 0;
         const int  n_wa_pattern    = hparams.n_wa_pattern;
         const int  n_pos           = n_patches;
-        // Florence2 没有 rope，所以不需要 num_position_ids / m-rope 特殊处理
 
         // Norm 类型继承 qwen2vl 的选择逻辑（如果 Florence2 固定某种 norm，可改为常量）
-        norm_type norm_t = ctx->proj_type == PROJECTOR_TYPE_QWEN25VL ? NORM_TYPE_RMS : NORM_TYPE_NORMAL;
+        norm_type norm_t = NORM_TYPE_NORMAL;
 
-        // --- 输入与 conv stem（Florence2: 三层 conv 开头） ---
+        // --- 输入 ---
         ggml_tensor * inp_raw = build_inp_raw();  // [w, h, c, b]  或者仓库里相应的输入构造
-        // 第一层 conv: patch_embeddings_0
-        ggml_tensor * inp = ggml_conv_2d(ctx0, model.patch_embeddings_0, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-        // 第二层 conv: patch_embeddings_1 （这里示例为来自 raw 的另一分支并相加，参考 qwen2vl 风格）
-        {
-            auto inp_1 = ggml_conv_2d(ctx0, model.patch_embeddings_1, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-            inp        = ggml_add(ctx0, inp, inp_1);
-        }
-        // 第三层 conv: patch_embeddings_2 （Florence2 的额外 conv）
-        {
-            auto inp_2 = ggml_conv_2d(ctx0, model.patch_embeddings_2, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-            inp        = ggml_add(ctx0, inp, inp_2);
-        }
 
         // 确保输入尺寸可用（保持 qwen2vl 的断言逻辑）
         GGML_ASSERT(img.nx % (patch_size * 2) == 0);
         GGML_ASSERT(img.ny % (patch_size * 2) == 0);
 
+        ggml_tensor * inp = ggml_cont(ctx0, ggml_permute(ctx0, inp_raw, 1, 2, 0, 3));  // [C, W, H, B]
         // 与 qwen2vl 一致的张量重排/reshape 以得到 [n_embd, n_patches_x * n_patches_y, batch_size]
         // 下面沿用 qwen2vl 的 reshape/permutation 流程（根据 patch / downsample 实际情况调整）
-        inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 1, 2, 0, 3));  // [w, h, c, b] -> [c, w, h, b]
-        inp = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, n_patches_y, batch_size);
-        inp = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, 2, batch_size * (n_patches_y / 2));
-        inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 0, 2, 1, 3));
-        inp = ggml_reshape_3d(ctx0, inp, n_embd, n_patches_x * n_patches_y, batch_size);
+        inp               = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, n_patches_y, batch_size);
+        inp               = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, 2, batch_size * (n_patches_y / 2));
+        inp               = ggml_cont(ctx0, ggml_permute(ctx0, inp, 0, 2, 1, 3));
+        inp               = ggml_reshape_3d(ctx0, inp, n_embd, n_patches_x * n_patches_y, batch_size);
 
         ggml_tensor * inpL           = inp;
         ggml_tensor * window_mask    = nullptr;
@@ -883,56 +1055,49 @@ struct clip_graph {
 
         // --- Transformer blocks ---
         for (int il = 0; il < n_layer; il++) {
-            auto &     layer     = model.layers[il];
-            const bool full_attn = use_window_attn ? (il + 1) % n_wa_pattern == 0 : true;
+            auto & layer = model.layers[il];
+            // const bool full_attn = use_window_attn ? (il + 1) % n_wa_pattern == 0 : true;
 
             ggml_tensor * cur = inpL;  // residual input
 
-            // layernorm1
-            cur = build_norm(cur, layer.ln_1_w, layer.ln_1_b, norm_t, eps, il);
-            cb(cur, "ln1", il);
-
-            // self-attention (注意：**没有 RoPE**，Q/K 直接来自线性投影)
-            {
-                ggml_tensor * Qcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.q_w, cur), layer.q_b);
-                ggml_tensor * Kcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.k_w, cur), layer.k_b);
-                ggml_tensor * Vcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.v_w, cur), layer.v_b);
-
-                // reshape到多头格式
-                Qcur = ggml_reshape_3d(ctx0, Qcur, d_head, n_head, n_patches);
-                Kcur = ggml_reshape_3d(ctx0, Kcur, d_head, n_head, n_patches);
-                Vcur = ggml_reshape_3d(ctx0, Vcur, d_head, n_head, n_patches);
-
-                cb(Qcur, "Qcur", il);
-                cb(Kcur, "Kcur", il);
-                cb(Vcur, "Vcur", il);
-
-                // **这里不调用 ggml_rope_multi**，直接使用 Q/K
-                ggml_tensor * attn_mask = full_attn ? nullptr : window_mask;
-
-                cur = build_attn(layer.o_w, layer.o_b, Qcur, Kcur, Vcur, attn_mask, kq_scale, il);
-                cb(cur, "attn_out", il);
+            if (il == 0) {
+                ggml_tensor * conv0 = ggml_conv_2d(ctx0, model.patch_embeddings_0, cur, conv_stride[0], conv_stride[0],
+                                                   conv_padding[0], conv_padding[0], 1, 1);
+                conv0               = ggml_add(ctx0, conv0, layer.conv_proj_b);
+                conv0               = ggml_norm(ctx0, conv0, eps);
+                conv0               = ggml_add(ctx0, ggml_mul(ctx0, conv0, layer.conv_norm_w), layer.conv_norm_b);
+                // 激活函数
+                // conv = ggml_gelu(ctx0, conv);
+                cur                 = conv0;
+            } else if (il == 1) {
+                ggml_tensor * conv1 = ggml_conv_2d(ctx0, model.patch_embeddings_1, cur, conv_stride[1], conv_stride[1],
+                                                   conv_padding[1], conv_padding[1], 1, 1);
+                conv1               = ggml_add(ctx0, conv1, layer.conv_proj_b);
+                conv1               = ggml_norm(ctx0, conv1, eps);
+                conv1               = ggml_add(ctx0, ggml_mul(ctx0, conv1, layer.conv_norm_w), layer.conv_norm_b);
+                cur                 = conv1;
+            } else if (il == 2) {
+                ggml_tensor * conv2 = ggml_conv_2d(ctx0, model.patch_embeddings_2, cur, conv_stride[2], conv_stride[2],
+                                                   conv_padding[2], conv_padding[2], 1, 1);
+                conv2               = ggml_add(ctx0, conv2, layer.conv_proj_b);
+                conv2               = ggml_norm(ctx0, conv2, eps);
+                conv2               = ggml_add(ctx0, ggml_mul(ctx0, conv2, layer.conv_norm_w), layer.conv_norm_b);
+                cur                 = conv2;
+            } else if (il == 11) {
+                ggml_tensor * conv3 = ggml_conv_2d(ctx0, model.patch_embeddings_3, cur, conv_stride[3], conv_stride[3],
+                                                   conv_padding[3], conv_padding[3], 1, 1);
+                conv3               = ggml_add(ctx0, conv3, layer.conv_proj_b);
+                conv3               = ggml_norm(ctx0, conv3, eps);
+                conv3               = ggml_add(ctx0, ggml_mul(ctx0, conv3, layer.conv_norm_w), layer.conv_norm_b);
+                cur                 = conv3;
             }
 
-            // residual add
-            cur  = ggml_add(ctx0, cur, inpL);
-            inpL = cur;
-
-            cb(cur, "ffn_inp", il);
-
-            // layernorm2
-            cur = build_norm(cur, layer.ln_2_w, layer.ln_2_b, norm_t, eps, il);
-            cb(cur, "ffn_inp_normed", il);
-
-            // ffn
-            cur = build_ffn(cur, layer.ff_up_w, layer.ff_up_b, layer.ff_gate_w, layer.ff_gate_b, layer.ff_down_w,
-                            layer.ff_down_b, hparams.ffn_op, il);
-
-            cb(cur, "ffn_out", il);
-
-            // residual 2
-            cur = ggml_add(ctx0, inpL, cur);
-            cb(cur, "layer_out", il);
+            // DaVit transformer
+            {
+                cur = build_davit_dual_attention(cur, il);
+                cur = ggml_add(ctx0, cur, inpL);
+                cb(cur, "layer_out", il);
+            }
 
             inpL = cur;
         }
