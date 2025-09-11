@@ -260,6 +260,30 @@ class Keys:
         class Projector:
             STACK_FACTOR    = "clip.audio.projector.stack_factor"
 
+    class DavitVision:
+        DROP_PATH_RATE   = "davit_vision.drop_path_rate"
+        PATCH_SIZE       = "davit_vision.patch_size"
+        PATCH_STRIDE     = "davit_vision.patch_stride"
+        PATCH_PADDING    = "davit_vision.patch_padding"
+        PATCH_PRENORM    = "davit_vision.patch_prenorm"
+        ENABLE_CHECKPOINT= "davit_vision.enable_checkpoint"
+        DIM_EMBED        = "davit_vision.dim_embed"
+        NUM_HEADS        = "davit_vision.num_heads"
+        NUM_GROUPS       = "davit_vision.num_groups"
+        DEPTHS           = "davit_vision.depths"
+        WINDOW_SIZE      = "davit_vision.window_size"
+        PROJECTION_DIM   = "davit_vision.projection_dim"
+        IMAGE_FEATURE_SOURCE = "davit_vision.image_feature_source"
+        MODEL_TYPE       = "davit_vision.model_type"
+
+        class TemporalEmbedding:
+            TYPE                    = "davit_vision.temporal_embedding.type"
+            MAX_TEMPORAL_EMBEDDINGS = "davit_vision.temporal_embedding.max_embeddings"
+
+        class ImagePosEmbed:
+            TYPE               = "davit_vision.image_pos_embed.type"
+            MAX_POS_EMBEDDINGS = "davit_vision.image_pos_embed.max_embeddings"
+
 #
 # recommended mapping of model tensor names for storage in gguf
 #

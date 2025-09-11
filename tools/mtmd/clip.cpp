@@ -162,6 +162,44 @@ enum patch_merge_type {
     PATCH_MERGE_SPATIAL_UNPAD,
 };
 
+enum davit_temporal_embedding_type {
+    DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE = 0,
+    DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE = 1,
+};
+
+enum davit_image_pos_embed_type {
+    DAVIT_IMAGE_POS_EMBED_TYPE_NONE = 0,
+    DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D = 1,
+};
+
+struct Davit_Hparams {
+
+    float                drop_path_rate = 0.0;
+    std::vector<int32_t> patch_size;
+    std::vector<int32_t> patch_stride;
+    std::vector<int32_t> patch_padding;
+    std::vector<bool>    patch_prenorm;
+    bool                 enable_checkpoint = false;
+    std::vector<int32_t> dim_embed;
+    std::vector<int32_t> num_heads;
+    std::vector<int32_t> num_groups;
+    std::vector<int32_t> depths;
+    int32_t              window_size = 0;
+    int32_t              project_dim = 0;
+    std::string          image_feature_source;
+    std::string          model_type;
+
+    struct {
+        davit_temporal_embedding_type type                    = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+        int32_t                            max_embeddings = 0;
+    } temporal_embedding;
+
+    struct {
+        davit_image_pos_embed_type type               = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+        int32_t                         max_embeddings = 0;
+    } image_pos_embed;
+};
+
 struct clip_hparams {
     bool has_vision = false;
     bool has_audio  = false;
@@ -196,6 +234,9 @@ struct clip_hparams {
     // audio
     int32_t n_mel_bins        = 0;  // whisper preprocessor
     int32_t proj_stack_factor = 0;  // ultravox
+
+    // Florence2
+    Davit_Hparams davit_hparams;
 };
 
 struct clip_layer {
@@ -2460,16 +2501,83 @@ struct clip_model_loader {
                     }
                     break;
                 case PROJECTOR_TYPE_FLORENCE2:
-                    {
-                        // TODO florence2
-                        get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
-
-                        if (hparams.image_size > 1024) {
-                            hparams.image_size = 1024;
-                        }
-                        hparams.warmup_image_size = hparams.patch_size * 8;
+                {
+                    // 1) General projector parameters
+                    get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
+                    if (hparams.image_size > 1024) {
+                        hparams.image_size = 1024;
                     }
-                    break;
+                    hparams.warmup_image_size = hparams.patch_size * 8;
+                
+                    // 2) Load custom DaViT hyperparameters
+                    auto & dv = hparams.davit_hparams;   // or hparams.davit_vision if you embedded it there
+                
+                    // Scalars
+                    get_f32 (KEY_DAVIT_VISION_DROP_PATH_RATE, dv.drop_path_rate, false);
+                    get_bool(KEY_DAVIT_VISION_ENABLE_CHECKPOINT, dv.enable_checkpoint, false);
+                    get_u32 (KEY_DAVIT_VISION_WINDOW_SIZE, dv.window_size, false);
+                    get_u32 (KEY_DAVIT_VISION_PROJECT_DIM, dv.project_dim, false);
+                    get_string(KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE, dv.image_feature_source, false);
+                    get_string(KEY_DAVIT_VISION_MODEL_TYPE, dv.model_type, false);
+                
+                    // Integer arrays
+                    get_arr_int(KEY_DAVIT_VISION_PATCH_SIZE,   dv.patch_size,   false);
+                    get_arr_int(KEY_DAVIT_VISION_PATCH_STRIDE, dv.patch_stride, false);
+                    get_arr_int(KEY_DAVIT_VISION_PATCH_PADDING,dv.patch_padding,false);
+                    get_arr_int(KEY_DAVIT_VISION_DIM_EMBED,    dv.dim_embed,    false);
+                    get_arr_int(KEY_DAVIT_VISION_NUM_HEADS,    dv.num_heads,    false);
+                    get_arr_int(KEY_DAVIT_VISION_NUM_GROUPS,   dv.num_groups,   false);
+                    get_arr_int(KEY_DAVIT_VISION_DEPTHS,       dv.depths,       false);
+                
+                    // Boolean arrays (stored as int → convert to bool)
+                    {
+                        std::vector<int> tmp;
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_PRENORM, tmp, false);
+                        dv.patch_prenorm.clear();
+                        dv.patch_prenorm.reserve(tmp.size());
+                        for (int v : tmp) {
+                            dv.patch_prenorm.push_back(v != 0);
+                        }
+                    }
+                
+                    // Temporal embedding
+                    {
+                        std::string temp_type;
+                        get_string(KEY_DAVIT_VISION_TEMP_EMB_TYPE, temp_type, false);
+                        if (temp_type=="COSINE"){
+                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE;
+                        }else{
+                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+                        }
+                        get_u32(KEY_DAVIT_VISION_TEMP_EMB_MAX, dv.temporal_embedding.max_embeddings, false);
+                    }
+                
+                    // Image positional embedding
+                    {
+                        std::string img_pos_type;
+                        get_string(KEY_DAVIT_VISION_IMG_POS_EMB_TYPE, img_pos_type, false);
+                        if (img_pos_type=="learned_abs_2d"){
+                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D;
+                        }else{
+                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+                        }
+                        get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
+                    }
+                
+                    // 3) Consistency checks (optional)
+                    if (!dv.patch_size.empty()) {
+                        if (!dv.patch_stride.empty() && dv.patch_stride.size() != dv.patch_size.size()) {
+                            throw std::runtime_error("davit_vision.patch_stride size mismatch with patch_size");
+                        }
+                        if (!dv.patch_padding.empty() && dv.patch_padding.size() != dv.patch_size.size()) {
+                            throw std::runtime_error("davit_vision.patch_padding size mismatch with patch_size");
+                        }
+                        if (!dv.patch_prenorm.empty() && dv.patch_prenorm.size() != dv.patch_size.size()) {
+                            throw std::runtime_error("davit_vision.patch_prenorm size mismatch with patch_size");
+                        }
+                    }
+                }
+                break;                   
                 case PROJECTOR_TYPE_LLAMA4:
                     {
                         hparams.rope_theta = 10000.0f;

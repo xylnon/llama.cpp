@@ -124,6 +124,30 @@
 #define TN_MM_NORM_PRE  "mm.a.norm_pre.%s"
 #define TN_MM_NORM_MID  "mm.a.norm_mid.%s"
 
+// DAViT vision keys (Florence2)
+#define KEY_DAVIT_VISION_DROP_PATH_RATE           "davit_vision.drop_path_rate"
+#define KEY_DAVIT_VISION_PATCH_SIZE               "davit_vision.patch_size"
+#define KEY_DAVIT_VISION_PATCH_STRIDE             "davit_vision.patch_stride"
+#define KEY_DAVIT_VISION_PATCH_PADDING            "davit_vision.patch_padding"
+#define KEY_DAVIT_VISION_PATCH_PRENORM            "davit_vision.patch_prenorm"
+#define KEY_DAVIT_VISION_ENABLE_CHECKPOINT        "davit_vision.enable_checkpoint"
+#define KEY_DAVIT_VISION_DIM_EMBED                "davit_vision.dim_embed"
+#define KEY_DAVIT_VISION_NUM_HEADS                "davit_vision.num_heads"
+#define KEY_DAVIT_VISION_NUM_GROUPS               "davit_vision.num_groups"
+#define KEY_DAVIT_VISION_DEPTHS                   "davit_vision.depths"
+#define KEY_DAVIT_VISION_WINDOW_SIZE              "davit_vision.window_size"
+#define KEY_DAVIT_VISION_PROJECT_DIM              "davit_vision.projection_dim"
+#define KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE     "davit_vision.image_feature_source"
+#define KEY_DAVIT_VISION_MODEL_TYPE               "davit_vision.model_type"
+
+// temporal embedding
+#define KEY_DAVIT_VISION_TEMP_EMB_TYPE            "davit_vision.temporal_embedding.type"
+#define KEY_DAVIT_VISION_TEMP_EMB_MAX             "davit_vision.temporal_embedding.max_embeddings"
+
+// image pos embedding
+#define KEY_DAVIT_VISION_IMG_POS_EMB_TYPE         "davit_vision.image_pos_embed.type"
+#define KEY_DAVIT_VISION_IMG_POS_EMB_MAX          "davit_vision.image_pos_embed.max_embeddings"
+
 // align x to upper multiple of n
 #define CLIP_ALIGN(x, n) ((((x) + (n) - 1) / (n)) * (n))
 
