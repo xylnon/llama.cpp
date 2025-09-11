@@ -1102,6 +1102,12 @@ struct clip_graph {
             inpL = cur;
         }
 
+        ggml_tensor * projected  = ggml_mul_mat(ctx0, model.mm_input_proj_w, inpL);
+        // 步骤2: 投影后归一化
+        ggml_tensor * normalized = ggml_norm(ctx0, projected, eps);
+        normalized               = ggml_mul(ctx0, normalized, model.mm_input_norm_w);
+        normalized               = ggml_add(ctx0, normalized, model.mm_input_norm_b);
+
         // post-layernorm
         if (model.post_ln_w) {
             inpL = build_norm(inpL, model.post_ln_w, model.post_ln_b, norm_t, eps, n_layer);
