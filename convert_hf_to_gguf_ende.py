@@ -6223,6 +6223,7 @@ class Florence2VisionModel(MmprojModel):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         del bid  # unused
+        # print(name)
 
         if not hasattr(self, "_pos_embed_cache"):
             self._pos_embed_cache = {}
@@ -6283,10 +6284,9 @@ class Florence2VisionModel(MmprojModel):
         # 行列 pos_embed
         elif "image_pos_embed.row_embeddings" in name:
             self._pos_embed_cache["row"] = data_torch
-            return []
+
         elif "image_pos_embed.column_embeddings" in name:
             self._pos_embed_cache["col"] = data_torch
-            return []
 
         if "row" in self._pos_embed_cache and "col" in self._pos_embed_cache:
             row_emb = self._pos_embed_cache.pop("row")  # (50, 512)
@@ -6322,7 +6322,7 @@ class Florence2VisionModel(MmprojModel):
         elif name.startswith("image_projection"):
             return [(self.map_tensor_name("image_projection.weight"), data_torch)]
         elif name.startswith("visual_temporal_embed"):
-            print(name)
+            # print(name)
             return [(self.map_tensor_name(name), data_torch)]
 
         return []
