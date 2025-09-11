@@ -6323,7 +6323,7 @@ class Florence2VisionModel(MmprojModel):
             return [(self.map_tensor_name("image_projection.weight"), data_torch)]
         elif name.startswith("visual_temporal_embed"):
             # print(name)
-            return [(self.map_tensor_name(name), data_torch)]
+            return [(self.map_tensor_name(name+".weight"), data_torch)]
 
         return []
     
