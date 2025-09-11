@@ -163,17 +163,16 @@ enum patch_merge_type {
 };
 
 enum davit_temporal_embedding_type {
-    DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE = 0,
+    DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE   = 0,
     DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE = 1,
 };
 
 enum davit_image_pos_embed_type {
-    DAVIT_IMAGE_POS_EMBED_TYPE_NONE = 0,
+    DAVIT_IMAGE_POS_EMBED_TYPE_NONE           = 0,
     DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D = 1,
 };
 
 struct Davit_Hparams {
-
     float                drop_path_rate = 0.0;
     std::vector<int32_t> patch_size;
     std::vector<int32_t> patch_stride;
@@ -190,13 +189,13 @@ struct Davit_Hparams {
     std::string          model_type;
 
     struct {
-        davit_temporal_embedding_type type                    = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
-        int32_t                            max_embeddings = 0;
+        davit_temporal_embedding_type type           = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+        int32_t                       max_embeddings = 0;
     } temporal_embedding;
 
     struct {
-        davit_image_pos_embed_type type               = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
-        int32_t                         max_embeddings = 0;
+        davit_image_pos_embed_type type           = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+        int32_t                    max_embeddings = 0;
     } image_pos_embed;
 };
 
@@ -296,10 +295,10 @@ struct clip_layer {
     ggml_tensor * sp_ff_down_w = nullptr;
     ggml_tensor * sp_ff_down_b = nullptr;
 
-    ggml_tensor * conv_proj_w = nullptr;
-    ggml_tensor * conv_proj_b = nullptr;
-    ggml_tensor * conv_norm_w = nullptr;
-    ggml_tensor * conv_norm_b = nullptr;
+    // ggml_tensor * conv_proj_w = nullptr;
+    // ggml_tensor * conv_proj_b = nullptr;
+    // ggml_tensor * conv_norm_w = nullptr;
+    // ggml_tensor * conv_norm_b = nullptr;
 };
 
 struct clip_vision_model {
@@ -1095,22 +1094,22 @@ struct clip_graph {
             inpL = build_norm(inpL, model.pre_ln_w, model.pre_ln_b, norm_t, eps, -1);
         }
 
-        if (use_window_attn) {
-            // handle window attention inputs (跟 qwen2vl 一致)
-            inv_window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
-            ggml_set_name(inv_window_idx, "inv_window_idx");
-            ggml_set_input(inv_window_idx);
-            // mask for window attention
-            window_mask = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, n_pos, n_pos);
-            ggml_set_name(window_mask, "window_mask");
-            ggml_set_input(window_mask);
+        // if (use_window_attn) {
+        //     // handle window attention inputs (跟 qwen2vl 一致)
+        //     inv_window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
+        //     ggml_set_name(inv_window_idx, "inv_window_idx");
+        //     ggml_set_input(inv_window_idx);
+        //     // mask for window attention
+        //     window_mask = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, n_pos, n_pos);
+        //     ggml_set_name(window_mask, "window_mask");
+        //     ggml_set_input(window_mask);
 
-            // reshape & get_rows like qwen2vl
-            GGML_ASSERT(batch_size == 1);
-            inpL = ggml_reshape_2d(ctx0, inpL, n_embd * 4, n_patches_x * n_patches_y * batch_size / 4);
-            inpL = ggml_get_rows(ctx0, inpL, inv_window_idx);
-            inpL = ggml_reshape_3d(ctx0, inpL, n_embd, n_patches_x * n_patches_y, batch_size);
-        }
+        //     // reshape & get_rows like qwen2vl
+        //     GGML_ASSERT(batch_size == 1);
+        //     inpL = ggml_reshape_2d(ctx0, inpL, n_embd * 4, n_patches_x * n_patches_y * batch_size / 4);
+        //     inpL = ggml_get_rows(ctx0, inpL, inv_window_idx);
+        //     inpL = ggml_reshape_3d(ctx0, inpL, n_embd, n_patches_x * n_patches_y, batch_size);
+        // }
 
         // --- Transformer blocks ---
         for (int il = 0; il < n_layer; il++) {
@@ -1120,35 +1119,35 @@ struct clip_graph {
             ggml_tensor * cur = inpL;  // residual input
 
             if (il == 0) {
-                ggml_tensor * conv0 = ggml_conv_2d(ctx0, model.patch_embeddings_0, cur, conv_stride[0], conv_stride[0],
+                ggml_tensor * conv0 = ggml_conv_2d(ctx0, model.conv1d_1_proj_w, cur, conv_stride[0], conv_stride[0],
                                                    conv_padding[0], conv_padding[0], 1, 1);
-                conv0               = ggml_add(ctx0, conv0, layer.conv_proj_b);
+                conv0               = ggml_add(ctx0, conv0, model.conv1d_1_proj_b);
                 conv0               = ggml_norm(ctx0, conv0, eps);
-                conv0               = ggml_add(ctx0, ggml_mul(ctx0, conv0, layer.conv_norm_w), layer.conv_norm_b);
+                conv0 = ggml_add(ctx0, ggml_mul(ctx0, conv0, model.conv1d_1_norm_w), model.conv1d_1_norm_b);
                 // 激活函数
                 // conv = ggml_gelu(ctx0, conv);
-                cur                 = conv0;
+                cur   = conv0;
             } else if (il == 1) {
-                ggml_tensor * conv1 = ggml_conv_2d(ctx0, model.patch_embeddings_1, cur, conv_stride[1], conv_stride[1],
+                ggml_tensor * conv1 = ggml_conv_2d(ctx0, model.conv1d_2_proj_w, cur, conv_stride[1], conv_stride[1],
                                                    conv_padding[1], conv_padding[1], 1, 1);
-                conv1               = ggml_add(ctx0, conv1, layer.conv_proj_b);
+                conv1               = ggml_add(ctx0, conv1, model.conv1d_2_proj_b);
                 conv1               = ggml_norm(ctx0, conv1, eps);
-                conv1               = ggml_add(ctx0, ggml_mul(ctx0, conv1, layer.conv_norm_w), layer.conv_norm_b);
-                cur                 = conv1;
+                conv1 = ggml_add(ctx0, ggml_mul(ctx0, conv1, model.conv1d_2_norm_w), model.conv1d_2_norm_b);
+                cur   = conv1;
             } else if (il == 2) {
-                ggml_tensor * conv2 = ggml_conv_2d(ctx0, model.patch_embeddings_2, cur, conv_stride[2], conv_stride[2],
+                ggml_tensor * conv2 = ggml_conv_2d(ctx0, model.conv1d_3_proj_w, cur, conv_stride[2], conv_stride[2],
                                                    conv_padding[2], conv_padding[2], 1, 1);
-                conv2               = ggml_add(ctx0, conv2, layer.conv_proj_b);
+                conv2               = ggml_add(ctx0, conv2, model.conv1d_3_proj_b);
                 conv2               = ggml_norm(ctx0, conv2, eps);
-                conv2               = ggml_add(ctx0, ggml_mul(ctx0, conv2, layer.conv_norm_w), layer.conv_norm_b);
-                cur                 = conv2;
+                conv2 = ggml_add(ctx0, ggml_mul(ctx0, conv2, model.conv1d_3_norm_w), model.conv1d_3_norm_b);
+                cur   = conv2;
             } else if (il == 11) {
-                ggml_tensor * conv3 = ggml_conv_2d(ctx0, model.patch_embeddings_3, cur, conv_stride[3], conv_stride[3],
+                ggml_tensor * conv3 = ggml_conv_2d(ctx0, model.conv1d_4_proj_w, cur, conv_stride[3], conv_stride[3],
                                                    conv_padding[3], conv_padding[3], 1, 1);
-                conv3               = ggml_add(ctx0, conv3, layer.conv_proj_b);
+                conv3               = ggml_add(ctx0, conv3, model.conv1d_4_proj_b);
                 conv3               = ggml_norm(ctx0, conv3, eps);
-                conv3               = ggml_add(ctx0, ggml_mul(ctx0, conv3, layer.conv_norm_w), layer.conv_norm_b);
-                cur                 = conv3;
+                conv3 = ggml_add(ctx0, ggml_mul(ctx0, conv3, model.conv1d_4_norm_w), model.conv1d_4_norm_b);
+                cur   = conv3;
             }
 
             // DaVit transformer
@@ -1167,38 +1166,38 @@ struct clip_graph {
         normalized               = ggml_mul(ctx0, normalized, model.mm_input_norm_w);
         normalized               = ggml_add(ctx0, normalized, model.mm_input_norm_b);
 
-        // post-layernorm
-        if (model.post_ln_w) {
-            inpL = build_norm(inpL, model.post_ln_w, model.post_ln_b, norm_t, eps, n_layer);
-        }
+        // // post-layernorm
+        // if (model.post_ln_w) {
+        //     inpL = build_norm(inpL, model.post_ln_w, model.post_ln_b, norm_t, eps, n_layer);
+        // }
 
-        // multimodal projection（和 qwen2vl 保持一致：两层线性 + 激活）
-        ggml_tensor * embeddings = inpL;
-        embeddings               = ggml_reshape_3d(ctx0, embeddings, n_embd * 4, n_pos / 4, batch_size);
+        // // multimodal projection（和 qwen2vl 保持一致：两层线性 + 激活）
+        // ggml_tensor * embeddings = inpL;
+        // embeddings               = ggml_reshape_3d(ctx0, embeddings, n_embd * 4, n_pos / 4, batch_size);
 
-        embeddings = ggml_mul_mat(ctx0, model.mm_0_w, embeddings);
-        embeddings = ggml_add(ctx0, embeddings, model.mm_0_b);
+        // embeddings = ggml_mul_mat(ctx0, model.mm_0_w, embeddings);
+        // embeddings = ggml_add(ctx0, embeddings, model.mm_0_b);
 
-        // 激活
-        embeddings = ggml_gelu(ctx0, embeddings);
+        // // 激活
+        // embeddings = ggml_gelu(ctx0, embeddings);
 
-        embeddings = ggml_mul_mat(ctx0, model.mm_1_w, embeddings);
-        embeddings = ggml_add(ctx0, embeddings, model.mm_1_b);
+        // embeddings = ggml_mul_mat(ctx0, model.mm_1_w, embeddings);
+        // embeddings = ggml_add(ctx0, embeddings, model.mm_1_b);
 
-        if (use_window_attn) {
-            window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
-            ggml_set_name(window_idx, "window_idx");
-            ggml_set_input(window_idx);
+        // if (use_window_attn) {
+        //     window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
+        //     ggml_set_name(window_idx, "window_idx");
+        //     ggml_set_input(window_idx);
 
-            GGML_ASSERT(batch_size == 1);
-            embeddings = ggml_reshape_2d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4);
-            embeddings = ggml_get_rows(ctx0, embeddings, window_idx);
-            embeddings =
-                ggml_reshape_3d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4, batch_size);
-        }
+        //     GGML_ASSERT(batch_size == 1);
+        //     embeddings = ggml_reshape_2d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4);
+        //     embeddings = ggml_get_rows(ctx0, embeddings, window_idx);
+        //     embeddings =
+        //         ggml_reshape_3d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4, batch_size);
+        // }
 
         // build the graph
-        ggml_build_forward_expand(gf, embeddings);
+        ggml_build_forward_expand(gf, normalized);
 
         return gf;
     }
@@ -2501,83 +2500,83 @@ struct clip_model_loader {
                     }
                     break;
                 case PROJECTOR_TYPE_FLORENCE2:
-                {
-                    // 1) General projector parameters
-                    get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
-                    if (hparams.image_size > 1024) {
-                        hparams.image_size = 1024;
-                    }
-                    hparams.warmup_image_size = hparams.patch_size * 8;
-                
-                    // 2) Load custom DaViT hyperparameters
-                    auto & dv = hparams.davit_hparams;   // or hparams.davit_vision if you embedded it there
-                
-                    // Scalars
-                    get_f32 (KEY_DAVIT_VISION_DROP_PATH_RATE, dv.drop_path_rate, false);
-                    get_bool(KEY_DAVIT_VISION_ENABLE_CHECKPOINT, dv.enable_checkpoint, false);
-                    get_u32 (KEY_DAVIT_VISION_WINDOW_SIZE, dv.window_size, false);
-                    get_u32 (KEY_DAVIT_VISION_PROJECT_DIM, dv.project_dim, false);
-                    get_string(KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE, dv.image_feature_source, false);
-                    get_string(KEY_DAVIT_VISION_MODEL_TYPE, dv.model_type, false);
-                
-                    // Integer arrays
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_SIZE,   dv.patch_size,   false);
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_STRIDE, dv.patch_stride, false);
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_PADDING,dv.patch_padding,false);
-                    get_arr_int(KEY_DAVIT_VISION_DIM_EMBED,    dv.dim_embed,    false);
-                    get_arr_int(KEY_DAVIT_VISION_NUM_HEADS,    dv.num_heads,    false);
-                    get_arr_int(KEY_DAVIT_VISION_NUM_GROUPS,   dv.num_groups,   false);
-                    get_arr_int(KEY_DAVIT_VISION_DEPTHS,       dv.depths,       false);
-                
-                    // Boolean arrays (stored as int → convert to bool)
                     {
-                        std::vector<int> tmp;
-                        get_arr_int(KEY_DAVIT_VISION_PATCH_PRENORM, tmp, false);
-                        dv.patch_prenorm.clear();
-                        dv.patch_prenorm.reserve(tmp.size());
-                        for (int v : tmp) {
-                            dv.patch_prenorm.push_back(v != 0);
+                        // 1) General projector parameters
+                        get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
+                        if (hparams.image_size > 1024) {
+                            hparams.image_size = 1024;
+                        }
+                        hparams.warmup_image_size = hparams.patch_size * 8;
+
+                        // 2) Load custom DaViT hyperparameters
+                        auto & dv = hparams.davit_hparams;  // or hparams.davit_vision if you embedded it there
+
+                        // Scalars
+                        get_f32(KEY_DAVIT_VISION_DROP_PATH_RATE, dv.drop_path_rate, false);
+                        get_bool(KEY_DAVIT_VISION_ENABLE_CHECKPOINT, dv.enable_checkpoint, false);
+                        get_u32(KEY_DAVIT_VISION_WINDOW_SIZE, dv.window_size, false);
+                        get_u32(KEY_DAVIT_VISION_PROJECT_DIM, dv.project_dim, false);
+                        get_string(KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE, dv.image_feature_source, false);
+                        get_string(KEY_DAVIT_VISION_MODEL_TYPE, dv.model_type, false);
+
+                        // Integer arrays
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_SIZE, dv.patch_size, false);
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_STRIDE, dv.patch_stride, false);
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_PADDING, dv.patch_padding, false);
+                        get_arr_int(KEY_DAVIT_VISION_DIM_EMBED, dv.dim_embed, false);
+                        get_arr_int(KEY_DAVIT_VISION_NUM_HEADS, dv.num_heads, false);
+                        get_arr_int(KEY_DAVIT_VISION_NUM_GROUPS, dv.num_groups, false);
+                        get_arr_int(KEY_DAVIT_VISION_DEPTHS, dv.depths, false);
+
+                        // Boolean arrays (stored as int → convert to bool)
+                        {
+                            std::vector<int> tmp;
+                            get_arr_int(KEY_DAVIT_VISION_PATCH_PRENORM, tmp, false);
+                            dv.patch_prenorm.clear();
+                            dv.patch_prenorm.reserve(tmp.size());
+                            for (int v : tmp) {
+                                dv.patch_prenorm.push_back(v != 0);
+                            }
+                        }
+
+                        // Temporal embedding
+                        {
+                            std::string temp_type;
+                            get_string(KEY_DAVIT_VISION_TEMP_EMB_TYPE, temp_type, false);
+                            if (temp_type == "COSINE") {
+                                dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE;
+                            } else {
+                                dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+                            }
+                            get_u32(KEY_DAVIT_VISION_TEMP_EMB_MAX, dv.temporal_embedding.max_embeddings, false);
+                        }
+
+                        // Image positional embedding
+                        {
+                            std::string img_pos_type;
+                            get_string(KEY_DAVIT_VISION_IMG_POS_EMB_TYPE, img_pos_type, false);
+                            if (img_pos_type == "learned_abs_2d") {
+                                dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D;
+                            } else {
+                                dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+                            }
+                            get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
+                        }
+
+                        // 3) Consistency checks (optional)
+                        if (!dv.patch_size.empty()) {
+                            if (!dv.patch_stride.empty() && dv.patch_stride.size() != dv.patch_size.size()) {
+                                throw std::runtime_error("davit_vision.patch_stride size mismatch with patch_size");
+                            }
+                            if (!dv.patch_padding.empty() && dv.patch_padding.size() != dv.patch_size.size()) {
+                                throw std::runtime_error("davit_vision.patch_padding size mismatch with patch_size");
+                            }
+                            if (!dv.patch_prenorm.empty() && dv.patch_prenorm.size() != dv.patch_size.size()) {
+                                throw std::runtime_error("davit_vision.patch_prenorm size mismatch with patch_size");
+                            }
                         }
                     }
-                
-                    // Temporal embedding
-                    {
-                        std::string temp_type;
-                        get_string(KEY_DAVIT_VISION_TEMP_EMB_TYPE, temp_type, false);
-                        if (temp_type=="COSINE"){
-                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE;
-                        }else{
-                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
-                        }
-                        get_u32(KEY_DAVIT_VISION_TEMP_EMB_MAX, dv.temporal_embedding.max_embeddings, false);
-                    }
-                
-                    // Image positional embedding
-                    {
-                        std::string img_pos_type;
-                        get_string(KEY_DAVIT_VISION_IMG_POS_EMB_TYPE, img_pos_type, false);
-                        if (img_pos_type=="learned_abs_2d"){
-                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D;
-                        }else{
-                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
-                        }
-                        get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
-                    }
-                
-                    // 3) Consistency checks (optional)
-                    if (!dv.patch_size.empty()) {
-                        if (!dv.patch_stride.empty() && dv.patch_stride.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_stride size mismatch with patch_size");
-                        }
-                        if (!dv.patch_padding.empty() && dv.patch_padding.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_padding size mismatch with patch_size");
-                        }
-                        if (!dv.patch_prenorm.empty() && dv.patch_prenorm.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_prenorm size mismatch with patch_size");
-                        }
-                    }
-                }
-                break;                   
+                    break;
                 case PROJECTOR_TYPE_LLAMA4:
                     {
                         hparams.rope_theta = 10000.0f;
