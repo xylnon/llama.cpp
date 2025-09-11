@@ -276,6 +276,8 @@ struct clip_vision_model {
 
     ggml_tensor * patch_bias          = nullptr;
     ggml_tensor * position_embeddings = nullptr;
+    ggml_tensor * row_embedding       = nullptr;
+    ggml_tensor * col_embedding       = nullptr;
 
     ggml_tensor * pre_ln_w = nullptr;
     ggml_tensor * pre_ln_b = nullptr;
@@ -1012,17 +1014,33 @@ struct clip_graph {
         // --- 输入 ---
         ggml_tensor * inp_raw = build_inp_raw();  // [w, h, c, b]  或者仓库里相应的输入构造
 
+        ggml_tensor * inp = ggml_cont(ctx0, ggml_permute(ctx0, inp_raw, 1, 2, 0, 3));  // [C, W, H, B]
+
+        // 创建行和列的位置索引
+        ggml_tensor * row_indices = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_patches);
+        ggml_tensor * col_indices = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_patches);
+
+        ggml_set_name(row_indices, "row_indices");
+        ggml_set_name(col_indices, "col_indices");
+        ggml_set_input(row_indices);
+        ggml_set_input(col_indices);
+
+        // 获取行和列的嵌入
+        ggml_tensor * row_embed = ggml_get_rows(ctx0, model.row_embedding, row_indices);
+        ggml_tensor * col_embed = ggml_get_rows(ctx0, model.col_embedding, col_indices);
+
+        // 合并行列嵌入
+        ggml_tensor * pos_embed_2d = ggml_add(ctx0, row_embed, col_embed);
+
+        ggml_tensor * positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos);
+        ggml_set_name(positions, "positions");
+        ggml_set_input(positions);
+
+        inp = ggml_add(ctx0, inp, ggml_get_rows(ctx0, model.position_embeddings, positions));
+
         // 确保输入尺寸可用（保持 qwen2vl 的断言逻辑）
         GGML_ASSERT(img.nx % (patch_size * 2) == 0);
         GGML_ASSERT(img.ny % (patch_size * 2) == 0);
-
-        ggml_tensor * inp = ggml_cont(ctx0, ggml_permute(ctx0, inp_raw, 1, 2, 0, 3));  // [C, W, H, B]
-        // 与 qwen2vl 一致的张量重排/reshape 以得到 [n_embd, n_patches_x * n_patches_y, batch_size]
-        // 下面沿用 qwen2vl 的 reshape/permutation 流程（根据 patch / downsample 实际情况调整）
-        inp               = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, n_patches_y, batch_size);
-        inp               = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, 2, batch_size * (n_patches_y / 2));
-        inp               = ggml_cont(ctx0, ggml_permute(ctx0, inp, 0, 2, 1, 3));
-        inp               = ggml_reshape_3d(ctx0, inp, n_embd, n_patches_x * n_patches_y, batch_size);
 
         ggml_tensor * inpL           = inp;
         ggml_tensor * window_mask    = nullptr;
@@ -2746,9 +2764,10 @@ struct clip_model_loader {
             case PROJECTOR_TYPE_FLORENCE2:
                 {
                     // TODO florence2
-                    vision_model.mm_input_proj_w = get_tensor(TN_MM_INP_PROJ);
-                    vision_model.mm_input_norm_w = get_tensor(string_format(TN_OUT_PROJ, "weight"), false);
-                    vision_model.mm_input_norm_b = get_tensor(string_format(TN_OUT_PROJ, "bias"), false);
+                    vision_model.mm_input_proj_w     = get_tensor(TN_MM_INP_PROJ);
+                    vision_model.mm_input_norm_w     = get_tensor(string_format(TN_OUT_PROJ, "weight"), false);
+                    vision_model.mm_input_norm_b     = get_tensor(string_format(TN_OUT_PROJ, "bias"), false);
+                    vision_model.position_embeddings = get_tensor(TN_MM_SOFT_EMB_N);
 
                     vision_model.conv1d_1_proj_w = get_tensor(string_format(TN_IN_PROJ, 0, "weight"));
                     vision_model.conv1d_1_proj_b = get_tensor(string_format(TN_IN_PROJ, 0, "bias"));
