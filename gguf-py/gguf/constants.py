@@ -499,25 +499,34 @@ class MODEL_TENSOR(IntEnum):
     ENC_FFN_DOWN         = auto()
     ENC_FFN_UP           = auto()
     ENC_OUTPUT_NORM      = auto()
-    # TODO
+    # Florence-2
     ENC_POS_EMBD         = auto()
     DEC_POS_EMBD         = auto()
     ENC_FINAL_NORM       = auto()
     DEC_FINAL_NORM       = auto()
     ENC_TOKEN_EMBD_NORM  = auto()
     DEC_TOKEN_EMBD_NORM  = auto()
-    V_INPUT_PROJ         = auto()
-    V_INPUT_NORM         = auto()
-    V_SP_ATTN_Q          = auto()
-    V_SP_ATTN_K          = auto() 
-    V_SP_ATTN_V          = auto() 
-    V_SP_INPUT_NORM      = auto()     
-    V_SP_ATTN_O          = auto() 
-    V_SP_POST_ATTN_NORM  = auto() 
-    V_SP_FFN_UP          = auto() 
-    V_SP_FFN_DOWN        = auto() 
-    V_SP_LAYER_SCALE_1   = auto() 
-    V_SP_LAYER_SCALE_2   = auto()     
+    V_CONVS_PROJ         = auto()
+    V_CONVS_NORM         = auto()
+    # Florence-2 spatial_block
+    V_SP_CONV1_FN_DW     = auto()
+    V_SP_ATTN_NORM       = auto()
+    V_SP_ATTN_FN_QKV     = auto()
+    V_SP_ATTN_FN_PROJ    = auto()
+    V_SP_CONV2_FN_DW     = auto()
+    V_SP_FFN_NORM        = auto()
+    V_SP_FFN_FN_NET_FC1  = auto()
+    V_SP_FFN_FN_NET_FC2  = auto()
+    # Florence-2 channel_block
+    V_CN_CONV1_FN_DW     = auto()
+    V_CN_ATTN_NORM       = auto()
+    V_CN_ATTN_FN_QKV     = auto()
+    V_CN_ATTN_FN_PROJ    = auto()
+    V_CN_CONV2_FN_DW     = auto()
+    V_CN_FFN_NORM        = auto()
+    V_CN_FFN_FN_NET_FC1  = auto()
+    V_CN_FFN_FN_NET_FC2  = auto()
+  
 
     CLS                  = auto() # classifier
     CLS_OUT              = auto() # classifier output projection
@@ -866,19 +875,28 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.V_RESMPL_QUERY:            "resampler.query",
     MODEL_TENSOR.V_TOK_EMBD_IMG_BREAK:      "v.token_embd.img_break", # pixtral
     MODEL_TENSOR.V_MM_PATCH_MERGER:         "mm.patch_merger", # mistral small 3.1
-    # TODO
-    MODEL_TENSOR.V_INPUT_PROJ:              "v.input.{bid}.proj",
-    MODEL_TENSOR.V_INPUT_NORM:              "v.input.{bid}.norm",
-    MODEL_TENSOR.V_SP_ATTN_Q:               "v.blk.sp.{bid}.attn_q",
-    MODEL_TENSOR.V_SP_ATTN_K:               "v.blk.sp.{bid}.attn_k",
-    MODEL_TENSOR.V_SP_ATTN_V:               "v.blk.sp.{bid}.attn_v",
-    MODEL_TENSOR.V_SP_INPUT_NORM:           "v.blk.sp.{bid}.ln1",
-    MODEL_TENSOR.V_SP_ATTN_O:               "v.blk.sp.{bid}.attn_out",
-    MODEL_TENSOR.V_SP_POST_ATTN_NORM:       "v.blk.sp.{bid}.ln2",
-    MODEL_TENSOR.V_SP_FFN_UP:               "v.blk.sp.{bid}.ffn_up",
-    MODEL_TENSOR.V_SP_FFN_DOWN:             "v.blk.sp.{bid}.ffn_down",
-    MODEL_TENSOR.V_SP_LAYER_SCALE_1:        "v.blk.sp.{bid}.ls1",
-    MODEL_TENSOR.V_SP_LAYER_SCALE_2:        "v.blk.sp.{bid}.ls2",
+    # Florence-2
+    MODEL_TENSOR.V_CONVS_PROJ:              "v.convs.{bid}.proj",
+    MODEL_TENSOR.V_CONVS_NORM:              "v.convs.{bid}.norm",
+    # Florence-2 spatial_block
+    MODEL_TENSOR.V_SP_CONV1_FN_DW:          "v.blk.{bid}.<second_idx>.spatial_block.conv1.fn.dw",
+    MODEL_TENSOR.V_SP_ATTN_NORM:            "v.blk.{bid}.<second_idx>.spatial_block.window_attn.norm",
+    MODEL_TENSOR.V_SP_ATTN_FN_QKV:          "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.qkv",
+    MODEL_TENSOR.V_SP_ATTN_FN_PROJ:         "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.proj", 
+    MODEL_TENSOR.V_SP_CONV2_FN_DW:          "v.blk.{bid}.<second_idx>.spatial_block.conv2.fn.dw",
+    MODEL_TENSOR.V_SP_FFN_NORM:             "v.blk.{bid}.<second_idx>.spatial_block.ffn.norm",
+    MODEL_TENSOR.V_SP_FFN_FN_NET_FC1:       "v.blk.{bid}.<second_idx>.spatial_block.ffn.fn.net.fc1",  
+    MODEL_TENSOR.V_SP_FFN_FN_NET_FC2:       "v.blk.{bid}.<second_idx>.spatial_block.ffn.fn.net.fc2",
+    # Florence-2 channel_block
+    MODEL_TENSOR.V_CN_CONV1_FN_DW:          "v.blk.{bid}.<second_idx>.channel_block.conv1.fn.dw",
+    MODEL_TENSOR.V_CN_ATTN_NORM:            "v.blk.{bid}.<second_idx>.channel_block.channel_attn.norm",
+    MODEL_TENSOR.V_CN_ATTN_FN_QKV:          "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.qkv",
+    MODEL_TENSOR.V_CN_ATTN_FN_PROJ:         "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.proj", 
+    MODEL_TENSOR.V_CN_CONV2_FN_DW:          "v.blk.{bid}.<second_idx>.channel_block.conv2.fn.dw", 
+    MODEL_TENSOR.V_CN_FFN_NORM:             "v.blk.{bid}.<second_idx>.channel_block.ffn.norm",
+    MODEL_TENSOR.V_CN_FFN_FN_NET_FC1:       "v.blk.{bid}.<second_idx>.channel_block.ffn.fn.net.fc1",
+    MODEL_TENSOR.V_CN_FFN_FN_NET_FC2:       "v.blk.{bid}.<second_idx>.channel_block.ffn.fn.net.fc2",
+
 
     # audio (mtmd)
     MODEL_TENSOR.A_ENC_EMBD_POS:            "a.position_embd",
@@ -940,19 +958,27 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.V_RESMPL_QUERY,
         MODEL_TENSOR.V_TOK_EMBD_IMG_BREAK,
         MODEL_TENSOR.V_MM_PATCH_MERGER,
-        # TODO
-        MODEL_TENSOR.V_INPUT_PROJ,
-        MODEL_TENSOR.V_INPUT_NORM,
-        MODEL_TENSOR.V_SP_ATTN_Q,
-        MODEL_TENSOR.V_SP_ATTN_K,
-        MODEL_TENSOR.V_SP_ATTN_V,
-        MODEL_TENSOR.V_SP_INPUT_NORM,
-        MODEL_TENSOR.V_SP_ATTN_O,
-        MODEL_TENSOR.V_SP_POST_ATTN_NORM,
-        MODEL_TENSOR.V_SP_FFN_UP,
-        MODEL_TENSOR.V_SP_FFN_DOWN,
-        MODEL_TENSOR.V_SP_LAYER_SCALE_1,
-        MODEL_TENSOR.V_SP_LAYER_SCALE_2,
+        # Florence-2
+        MODEL_TENSOR.V_CONVS_PROJ,
+        MODEL_TENSOR.V_CONVS_NORM,
+        # Florence-2 spatial_block
+        MODEL_TENSOR.V_SP_CONV1_FN_DW,
+        MODEL_TENSOR.V_SP_ATTN_NORM,
+        MODEL_TENSOR.V_SP_ATTN_FN_QKV,
+        MODEL_TENSOR.V_SP_ATTN_FN_PROJ,
+        MODEL_TENSOR.V_SP_CONV2_FN_DW,
+        MODEL_TENSOR.V_SP_FFN_NORM,
+        MODEL_TENSOR.V_SP_FFN_FN_NET_FC1,
+        MODEL_TENSOR.V_SP_FFN_FN_NET_FC2,
+        # Florence-2 channel_block
+        MODEL_TENSOR.V_CN_CONV1_FN_DW,
+        MODEL_TENSOR.V_CN_ATTN_NORM,
+        MODEL_TENSOR.V_CN_ATTN_FN_QKV,
+        MODEL_TENSOR.V_CN_ATTN_FN_PROJ,
+        MODEL_TENSOR.V_CN_CONV2_FN_DW,
+        MODEL_TENSOR.V_CN_FFN_NORM,
+        MODEL_TENSOR.V_CN_FFN_FN_NET_FC1,
+        MODEL_TENSOR.V_CN_FFN_FN_NET_FC2,
 
         # audio
         MODEL_TENSOR.A_ENC_EMBD_POS,

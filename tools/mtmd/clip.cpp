@@ -295,6 +295,46 @@ struct clip_layer {
     ggml_tensor * sp_ff_up_b   = nullptr;
     ggml_tensor * sp_ff_down_w = nullptr;
     ggml_tensor * sp_ff_down_b = nullptr;
+
+    // florence2 davit
+    ggml_tensor * convs_proj_w = nullptr;
+    ggml_tensor * convs_proj_b = nullptr;
+    ggml_tensor * convs_norm_w = nullptr;
+    ggml_tensor * convs_norm_b = nullptr;
+    // florence2 davit spatial_block
+    std::vector<ggml_tensor *> spatial_block_conv1_fn_dw_w;
+    std::vector<ggml_tensor *> spatial_block_conv1_fn_dw_b;
+    std::vector<ggml_tensor *> spatial_block_attn_norm_w;
+    std::vector<ggml_tensor *> spatial_block_attn_norm_b;
+    std::vector<ggml_tensor *> spatial_block_attn_fn_qkv_w;
+    std::vector<ggml_tensor *> spatial_block_attn_fn_qkv_b;
+    std::vector<ggml_tensor *> spatial_block_attn_fn_proj_w;
+    std::vector<ggml_tensor *> spatial_block_attn_fn_proj_b;
+    std::vector<ggml_tensor *> spatial_block_conv2_fn_dw_w;
+    std::vector<ggml_tensor *> spatial_block_conv2_fn_dw_b;
+    std::vector<ggml_tensor *> spatial_block_ffn_norm_w;
+    std::vector<ggml_tensor *> spatial_block_ffn_norm_b;
+    std::vector<ggml_tensor *> spatial_block_ffn_fn_net_fc1_w;
+    std::vector<ggml_tensor *> spatial_block_ffn_fn_net_fc1_b;
+    std::vector<ggml_tensor *> spatial_block_ffn_fn_net_fc2_w;
+    std::vector<ggml_tensor *> spatial_block_ffn_fn_net_fc2_b;
+    // florence2 davit channel_block
+    std::vector<ggml_tensor *> channel_block_conv1_fn_dw_w;
+    std::vector<ggml_tensor *> channel_block_conv1_fn_dw_b;
+    std::vector<ggml_tensor *> channel_block_attn_norm_w;
+    std::vector<ggml_tensor *> channel_block_attn_norm_b;
+    std::vector<ggml_tensor *> channel_block_attn_fn_qkv_w;
+    std::vector<ggml_tensor *> channel_block_attn_fn_qkv_b;
+    std::vector<ggml_tensor *> channel_block_attn_fn_proj_w;
+    std::vector<ggml_tensor *> channel_block_attn_fn_proj_b;
+    std::vector<ggml_tensor *> channel_block_conv2_fn_dw_w;
+    std::vector<ggml_tensor *> channel_block_conv2_fn_dw_b;
+    std::vector<ggml_tensor *> channel_block_ffn_norm_w;
+    std::vector<ggml_tensor *> channel_block_ffn_norm_b;
+    std::vector<ggml_tensor *> channel_block_ffn_fn_net_fc1_w;
+    std::vector<ggml_tensor *> channel_block_ffn_fn_net_fc1_b;
+    std::vector<ggml_tensor *> channel_block_ffn_fn_net_fc2_w;
+    std::vector<ggml_tensor *> channel_block_ffn_fn_net_fc2_b;
 };
 
 struct clip_vision_model {
@@ -2374,19 +2414,7 @@ struct clip_model_loader {
                         }
                         get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
                     }
-                
-                    // 3) Consistency checks (optional)
-                    if (!dv.patch_size.empty()) {
-                        if (!dv.patch_stride.empty() && dv.patch_stride.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_stride size mismatch with patch_size");
-                        }
-                        if (!dv.patch_padding.empty() && dv.patch_padding.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_padding size mismatch with patch_size");
-                        }
-                        if (!dv.patch_prenorm.empty() && dv.patch_prenorm.size() != dv.patch_size.size()) {
-                            throw std::runtime_error("davit_vision.patch_prenorm size mismatch with patch_size");
-                        }
-                    }
+
                 }
                 break;                   
                 case PROJECTOR_TYPE_LLAMA4:
@@ -2506,46 +2534,48 @@ struct clip_model_loader {
         vision_model.position_embeddings = get_tensor(string_format(TN_POS_EMBD, prefix), false);
 
         // layers
-        vision_model.layers.resize(hparams.n_layer);
-        for (int il = 0; il < hparams.n_layer; ++il) {
-            auto & layer = vision_model.layers[il];
-            layer.k_w    = get_tensor(string_format(TN_ATTN_K, prefix, il, "weight"));
-            layer.q_w    = get_tensor(string_format(TN_ATTN_Q, prefix, il, "weight"));
-            layer.v_w    = get_tensor(string_format(TN_ATTN_V, prefix, il, "weight"));
-            layer.o_w    = get_tensor(string_format(TN_ATTN_OUTPUT, prefix, il, "weight"));
-            layer.k_norm = get_tensor(string_format(TN_ATTN_K_NORM, prefix, il, "weight"), false);
-            layer.q_norm = get_tensor(string_format(TN_ATTN_Q_NORM, prefix, il, "weight"), false);
-            layer.ln_1_w = get_tensor(string_format(TN_LN_1, prefix, il, "weight"), false);
-            layer.ln_2_w = get_tensor(string_format(TN_LN_2, prefix, il, "weight"), false);
-            layer.ls_1_w = get_tensor(string_format(TN_LS_1, prefix, il, "weight"), false);  // no bias
-            layer.ls_2_w = get_tensor(string_format(TN_LS_2, prefix, il, "weight"), false);  // no bias
+        if (ctx_clip.proj_type!=PROJECTOR_TYPE_FLORENCE2){
+            vision_model.layers.resize(hparams.n_layer);
+            for (int il = 0; il < hparams.n_layer; ++il) {
+                auto & layer = vision_model.layers[il];
+                layer.k_w    = get_tensor(string_format(TN_ATTN_K, prefix, il, "weight"));
+                layer.q_w    = get_tensor(string_format(TN_ATTN_Q, prefix, il, "weight"));
+                layer.v_w    = get_tensor(string_format(TN_ATTN_V, prefix, il, "weight"));
+                layer.o_w    = get_tensor(string_format(TN_ATTN_OUTPUT, prefix, il, "weight"));
+                layer.k_norm = get_tensor(string_format(TN_ATTN_K_NORM, prefix, il, "weight"), false);
+                layer.q_norm = get_tensor(string_format(TN_ATTN_Q_NORM, prefix, il, "weight"), false);
+                layer.ln_1_w = get_tensor(string_format(TN_LN_1, prefix, il, "weight"), false);
+                layer.ln_2_w = get_tensor(string_format(TN_LN_2, prefix, il, "weight"), false);
+                layer.ls_1_w = get_tensor(string_format(TN_LS_1, prefix, il, "weight"), false);  // no bias
+                layer.ls_2_w = get_tensor(string_format(TN_LS_2, prefix, il, "weight"), false);  // no bias
 
-            layer.k_b    = get_tensor(string_format(TN_ATTN_K, prefix, il, "bias"), false);
-            layer.q_b    = get_tensor(string_format(TN_ATTN_Q, prefix, il, "bias"), false);
-            layer.v_b    = get_tensor(string_format(TN_ATTN_V, prefix, il, "bias"), false);
-            layer.o_b    = get_tensor(string_format(TN_ATTN_OUTPUT, prefix, il, "bias"), false);
-            layer.ln_1_b = get_tensor(string_format(TN_LN_1, prefix, il, "bias"), false);
-            layer.ln_2_b = get_tensor(string_format(TN_LN_2, prefix, il, "bias"), false);
+                layer.k_b    = get_tensor(string_format(TN_ATTN_K, prefix, il, "bias"), false);
+                layer.q_b    = get_tensor(string_format(TN_ATTN_Q, prefix, il, "bias"), false);
+                layer.v_b    = get_tensor(string_format(TN_ATTN_V, prefix, il, "bias"), false);
+                layer.o_b    = get_tensor(string_format(TN_ATTN_OUTPUT, prefix, il, "bias"), false);
+                layer.ln_1_b = get_tensor(string_format(TN_LN_1, prefix, il, "bias"), false);
+                layer.ln_2_b = get_tensor(string_format(TN_LN_2, prefix, il, "bias"), false);
 
-            // ffn
-            layer.ff_up_w   = get_tensor(string_format(TN_FFN_UP, prefix, il, "weight"));
-            layer.ff_up_b   = get_tensor(string_format(TN_FFN_UP, prefix, il, "bias"), false);
-            layer.ff_gate_w = get_tensor(string_format(TN_FFN_GATE, prefix, il, "weight"), false);
-            layer.ff_gate_b = get_tensor(string_format(TN_FFN_GATE, prefix, il, "bias"), false);
-            layer.ff_down_w = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "weight"));
-            layer.ff_down_b = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "bias"), false);
+                // ffn
+                layer.ff_up_w   = get_tensor(string_format(TN_FFN_UP, prefix, il, "weight"));
+                layer.ff_up_b   = get_tensor(string_format(TN_FFN_UP, prefix, il, "bias"), false);
+                layer.ff_gate_w = get_tensor(string_format(TN_FFN_GATE, prefix, il, "weight"), false);
+                layer.ff_gate_b = get_tensor(string_format(TN_FFN_GATE, prefix, il, "bias"), false);
+                layer.ff_down_w = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "weight"));
+                layer.ff_down_b = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "bias"), false);
 
-            // some models already exported with legacy (incorrect) naming which is quite messy, let's fix it here
-            // note: Qwen model converted from the old surgery script has n_ff = 0, so we cannot use n_ff to check!
-            if (layer.ff_up_w && layer.ff_down_w && layer.ff_down_w->ne[0] == hparams.n_embd) {
-                // swap up and down weights
-                ggml_tensor * tmp = layer.ff_up_w;
-                layer.ff_up_w     = layer.ff_down_w;
-                layer.ff_down_w   = tmp;
-                // swap up and down biases
-                tmp               = layer.ff_up_b;
-                layer.ff_up_b     = layer.ff_down_b;
-                layer.ff_down_b   = tmp;
+                // some models already exported with legacy (incorrect) naming which is quite messy, let's fix it here
+                // note: Qwen model converted from the old surgery script has n_ff = 0, so we cannot use n_ff to check!
+                if (layer.ff_up_w && layer.ff_down_w && layer.ff_down_w->ne[0] == hparams.n_embd) {
+                    // swap up and down weights
+                    ggml_tensor * tmp = layer.ff_up_w;
+                    layer.ff_up_w     = layer.ff_down_w;
+                    layer.ff_down_w   = tmp;
+                    // swap up and down biases
+                    tmp               = layer.ff_up_b;
+                    layer.ff_up_b     = layer.ff_down_b;
+                    layer.ff_down_b   = tmp;
+                }
             }
         }
 
@@ -2682,61 +2712,87 @@ struct clip_model_loader {
                 break;
             case PROJECTOR_TYPE_FLORENCE2:
                 {
-                    // TODO florence2
-                    vision_model.mm_input_proj_w = get_tensor(TN_MM_INP_PROJ);
-                    vision_model.mm_input_norm_w = get_tensor(string_format(TN_OUT_PROJ, "weight"), false);
-                    vision_model.mm_input_norm_b = get_tensor(string_format(TN_OUT_PROJ, "bias"), false);
-
-                    vision_model.conv1d_1_proj_w = get_tensor(string_format(TN_IN_PROJ, 0, "weight"));
-                    vision_model.conv1d_1_proj_b = get_tensor(string_format(TN_IN_PROJ, 0, "bias"));
-                    vision_model.conv1d_2_proj_w = get_tensor(string_format(TN_IN_PROJ, 1, "weight"));
-                    vision_model.conv1d_2_proj_b = get_tensor(string_format(TN_IN_PROJ, 1, "bias"));
-                    vision_model.conv1d_3_proj_w = get_tensor(string_format(TN_IN_PROJ, 2, "weight"));
-                    vision_model.conv1d_3_proj_b = get_tensor(string_format(TN_IN_PROJ, 2, "bias"));
-                    vision_model.conv1d_4_proj_w = get_tensor(string_format(TN_IN_PROJ, 3, "weight"));
-                    vision_model.conv1d_4_proj_b = get_tensor(string_format(TN_IN_PROJ, 3, "bias"));
-
-                    vision_model.conv1d_1_norm_w = get_tensor(string_format(TN_IN_NORM, 0, "weight"));
-                    vision_model.conv1d_1_norm_b = get_tensor(string_format(TN_IN_NORM, 0, "bias"));
-                    vision_model.conv1d_2_norm_w = get_tensor(string_format(TN_IN_NORM, 1, "weight"));
-                    vision_model.conv1d_2_norm_b = get_tensor(string_format(TN_IN_NORM, 1, "bias"));
-                    vision_model.conv1d_3_norm_w = get_tensor(string_format(TN_IN_NORM, 2, "weight"));
-                    vision_model.conv1d_3_norm_b = get_tensor(string_format(TN_IN_NORM, 2, "bias"));
-                    vision_model.conv1d_4_norm_w = get_tensor(string_format(TN_IN_NORM, 3, "weight"));
-                    vision_model.conv1d_4_norm_b = get_tensor(string_format(TN_IN_NORM, 3, "bias"));
-
-                    for (int il = 0; il < hparams.n_layer; ++il) {
-                        auto & layer = vision_model.layers[il];
-                        layer.sp_k_w = get_tensor(string_format(TN_SP_ATTN_K, prefix, il, "weight"));
-                        layer.sp_q_w = get_tensor(string_format(TN_SP_ATTN_Q, prefix, il, "weight"));
-                        layer.sp_v_w = get_tensor(string_format(TN_SP_ATTN_V, prefix, il, "weight"));
-                        layer.sp_o_w = get_tensor(string_format(TN_SP_ATTN_OUTPUT, prefix, il, "weight"));
-
-                        layer.sp_ln_1_w = get_tensor(string_format(TN_SP_LN_1, prefix, il, "weight"), false);
-                        layer.sp_ln_2_w = get_tensor(string_format(TN_SP_LN_2, prefix, il, "weight"), false);
-                        layer.sp_ls_1_w =
-                            get_tensor(string_format(TN_SP_LS_1, prefix, il, "weight"), false);  // no bias
-                        layer.sp_ls_2_w =
-                            get_tensor(string_format(TN_SP_LS_2, prefix, il, "weight"), false);  // no bias
-
-                        layer.sp_k_b    = get_tensor(string_format(TN_SP_ATTN_K, prefix, il, "bias"), false);
-                        layer.sp_q_b    = get_tensor(string_format(TN_SP_ATTN_Q, prefix, il, "bias"), false);
-                        layer.sp_v_b    = get_tensor(string_format(TN_SP_ATTN_V, prefix, il, "bias"), false);
-                        layer.sp_o_b    = get_tensor(string_format(TN_SP_ATTN_OUTPUT, prefix, il, "bias"), false);
-                        layer.sp_ln_1_b = get_tensor(string_format(TN_SP_LN_1, prefix, il, "bias"), false);
-                        layer.sp_ln_2_b = get_tensor(string_format(TN_SP_LN_2, prefix, il, "bias"), false);
-                        layer.sp_ls_1_b = get_tensor(string_format(TN_SP_LS_1, prefix, il, "bias"), false);  // no bias
-                        layer.sp_ls_2_b = get_tensor(string_format(TN_SP_LS_2, prefix, il, "bias"), false);  // no bias
-
-                        // ffn
-                        layer.sp_ff_up_w   = get_tensor(string_format(TN_FFN_UP, prefix, il, "weight"));
-                        layer.sp_ff_up_b   = get_tensor(string_format(TN_FFN_UP, prefix, il, "bias"), false);
-                        layer.sp_ff_down_w = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "weight"));
-                        layer.sp_ff_down_b = get_tensor(string_format(TN_FFN_DOWN, prefix, il, "bias"), false);
-
-                        layer.ls_1_b = get_tensor(string_format(TN_LS_1, prefix, il, "bias"), false);  // no bias
-                        layer.ls_2_b = get_tensor(string_format(TN_LS_2, prefix, il, "bias"), false);  // no bias
-                    }
+                    // florence2
+                    auto & dv = hparams.davit_hparams;   // or hparams.davit_vision if you embedded it there
+                    int num_stages = (int)dv.dim_embed.size();
+                    vision_model.layers.clear();
+                    for(int i=0;i<num_stages;i++){
+                        clip_layer new_layer = clip_layer();
+                        // convs
+                        new_layer.convs_proj_w = get_tensor(string_format(TN_FLORENCE2_CONVS_PROJ, i, "weight"));
+                        new_layer.convs_proj_b = get_tensor(string_format(TN_FLORENCE2_CONVS_PROJ, i, "bias"));
+                        new_layer.convs_norm_w = get_tensor(string_format(TN_FLORENCE2_CONVS_NORM, i, "weight"));
+                        new_layer.convs_norm_b = get_tensor(string_format(TN_FLORENCE2_CONVS_NORM, i, "bias"));
+                        for(int j=0;j<dv.depths[i];j++){
+                            // spatial_block
+                            new_layer.spatial_block_conv1_fn_dw_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_CONV1_FN_DW, i, j, "weight")));
+                            new_layer.spatial_block_conv1_fn_dw_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_CONV1_FN_DW, i, j, "bias")));
+                            new_layer.spatial_block_attn_norm_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_NORM, i, j, "weight")));
+                            new_layer.spatial_block_attn_norm_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_NORM, i, j, "bias")));
+                            new_layer.spatial_block_attn_fn_qkv_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_FN_QKV, i, j, "weight")));
+                            new_layer.spatial_block_attn_fn_qkv_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_FN_QKV, i, j, "bias")));
+                            new_layer.spatial_block_attn_fn_proj_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_FN_PROJ, i, j, "weight")));
+                            new_layer.spatial_block_attn_fn_proj_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_ATTN_FN_PROJ, i, j, "bias")));
+                            new_layer.spatial_block_conv2_fn_dw_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_CONV2_FN_DW, i, j, "weight")));
+                            new_layer.spatial_block_conv2_fn_dw_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_CONV2_FN_DW, i, j, "bias")));
+                            new_layer.spatial_block_ffn_norm_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_NORM, i, j, "weight")));
+                            new_layer.spatial_block_ffn_norm_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_NORM, i, j, "bias")));
+                            new_layer.spatial_block_ffn_fn_net_fc1_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_FN_NET_FC1, i, j, "weight")));
+                            new_layer.spatial_block_ffn_fn_net_fc1_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_FN_NET_FC1, i, j, "bias")));
+                            new_layer.spatial_block_ffn_fn_net_fc2_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_FN_NET_FC2, i, j, "weight")));
+                            new_layer.spatial_block_ffn_fn_net_fc2_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_SP_FFN_FN_NET_FC2, i, j, "bias")));
+                            // channel_block
+                            new_layer.channel_block_conv1_fn_dw_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_CONV1_FN_DW, i, j, "weight")));
+                            new_layer.channel_block_conv1_fn_dw_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_CONV1_FN_DW, i, j, "bias")));
+                            new_layer.channel_block_attn_norm_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_NORM, i, j, "weight")));
+                            new_layer.channel_block_attn_norm_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_NORM, i, j, "bias")));
+                            new_layer.channel_block_attn_fn_qkv_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_FN_QKV, i, j, "weight")));
+                            new_layer.channel_block_attn_fn_qkv_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_FN_QKV, i, j, "bias")));
+                            new_layer.channel_block_attn_fn_proj_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_FN_PROJ, i, j, "weight")));
+                            new_layer.channel_block_attn_fn_proj_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_ATTN_FN_PROJ, i, j, "bias")));
+                            new_layer.channel_block_conv2_fn_dw_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_CONV2_FN_DW, i, j, "weight")));
+                            new_layer.channel_block_conv2_fn_dw_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_CONV2_FN_DW, i, j, "bias")));
+                            new_layer.channel_block_ffn_norm_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_NORM, i, j, "weight")));
+                            new_layer.channel_block_ffn_norm_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_NORM, i, j, "bias")));
+                            new_layer.channel_block_ffn_fn_net_fc1_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC1, i, j, "weight")));
+                            new_layer.channel_block_ffn_fn_net_fc1_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC1, i, j, "bias")));
+                            new_layer.channel_block_ffn_fn_net_fc2_w.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC2, i, j, "weight")));
+                            new_layer.channel_block_ffn_fn_net_fc2_b.push_back(
+                                get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC2, i, j, "bias")));
+                            }
+                        vision_model.layers.push_back(new_layer);
+                        }
                 }
                 break;
             case PROJECTOR_TYPE_GEMMA3:

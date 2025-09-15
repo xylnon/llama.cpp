@@ -269,28 +269,10 @@ class ModelBase:
 
             # use the first number-like part of the tensor name as the block id
             bid = None
-            if self.model_arch == gguf.MODEL_ARCH.MMPROJ and self.global_config['model_type'] == "florence2":  # 假设 Florence 有对应的架构枚举  
-                # Florence 模型特殊处理：提取两个索引  
-                indices = []  
-                for part in name.split("."):  
-                    if part.isdecimal():  
-                        indices.append(int(part))  
-                        if len(indices) == 2:  
-                            break  
-                if len(indices) >= 2:  
-                    if indices[0] == 0 or indices == 1:
-                        bid = indices[0]
-                    elif indices[0] == 2:
-                        bid = indices[0] + 2
-                    elif indices[0] == 3:
-                        bid = 11
-                elif len(indices) == 1:  
-                    bid = indices[0]  
-            else:
-                for part in name.split("."):
-                    if part.isdecimal():
-                        bid = int(part)
-                        break
+            for part in name.split("."):
+                if part.isdecimal():
+                    bid = int(part)
+                    break
 
             for new_name, data_torch in (self.modify_tensors(data_torch, name, bid)):
                 # TODO: why do we squeeze here?
@@ -6220,9 +6202,22 @@ class Florence2VisionModel(MmprojModel):
         vision_config = self.original_vision_config
         self.gguf_writer.add_DavitVision(vision_config)
 
+    def collect_multi_index(self, name:str) -> list[int]:
+        # Collect multiple index from tensor name
+        indexs = []
+        parts = name.split('.')
+        for i in range(len(parts)):
+            part = parts[i]
+            part = part.strip()
+            if part.isdigit():
+                indexs.append(int(part))
+                if len(indexs) == 2:
+                    parts[i] = "<second_idx>"
+        assert len(indexs) ==2, f"Only support 2 indexs in tensor name now, but got {indexs} from {name}"
+        return indexs, '.'.join(parts)
+
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
-        del bid  # unused
 
         if not hasattr(self, "_pos_embed_cache"):
             self._pos_embed_cache = {}
@@ -6231,52 +6226,17 @@ class Florence2VisionModel(MmprojModel):
 
         # 处理 vision tower block
         if name.startswith("vision_tower."):
-            match = re.match(r"(vision_tower\.blocks\.)(\d+)\.(\d+)\.(spatial_block|channel_block)\.(.*)", name)
-            if match:
-                prefix, idx1, idx2, block_type, suffix = match.groups()
-                idx1, idx2 = int(idx1), int(idx2)
-
-                # 如果是 QKV，先拆分
-                tensors_to_store = []
-                if ".qkv." in suffix:
-                    if data_torch.ndim == 2:
-                        c3, _ = data_torch.shape
-                    else:
-                        c3 = data_torch.shape[0]
-                    assert c3 % 3 == 0, f"QKV tensor shape invalid: {data_torch.shape}"
-                    c = c3 // 3
-                    tensors_to_store = [
-                        (suffix.replace(".qkv.", ".q."), data_torch[:c]),
-                        (suffix.replace(".qkv.", ".k."), data_torch[c:2*c]),
-                        (suffix.replace(".qkv.", ".v."), data_torch[2*c:])
-                    ]
+            mul_idx_keys = ["spatial_block", "channel_block"]
+            mul_idx_key = next((k for k in mul_idx_keys if k in name), None)
+            if mul_idx_key is not None:
+                # Multiple index tensors to be concatenated later
+                indexs, new_name = self.collect_multi_index(name)
+                if bid is not None:
+                    assert bid == indexs[0], f"bid {bid} not match indexs {indexs} in tensor name {name}"
                 else:
-                    tensors_to_store = [(suffix, data_torch)]
-
-                # # 缓存（idx1, block_type, suffix）
-                # for sub_suffix, sub_tensor in tensors_to_store:
-                #     key = (idx1, block_type, sub_suffix)
-                #     if key not in self._vt_merge_cache:
-                #         self._vt_merge_cache[key] = {}
-                #     self._vt_merge_cache[key][idx2] = sub_tensor
-
-                # return []  # 暂不输出
-
-                # TODO 加入代码，把idx1和idx2合成一个idx，再直接输出
-                # 合成 idx：直接用 idx1*10 + idx2
-                outputs = []
-                new_idx = None
-                if idx1 == 1 or idx1 == 0:
-                    new_idx = idx1
-                elif idx1 == 2:
-                    new_idx = idx2 + 2
-                elif idx1 == 3:
-                    new_idx = 11
-                for sub_suffix, sub_tensor in tensors_to_store:
-                    merged_name = f"vision_tower.blocks.{new_idx}.{block_type}.{sub_suffix}"
-                    # print(merged_name)
-                    outputs.append((self.map_tensor_name(merged_name), sub_tensor))
-                return outputs
+                    bid = indexs[0]
+                assert name.count(mul_idx_key) == 1, f"mul_idx_key {mul_idx_key} found multiple times in tensor name {name}"
+                return [(self.map_tensor_name(new_name).replace("<second_idx>", str(indexs[1])), data_torch)]
 
             return [(self.map_tensor_name(name), data_torch)]
 

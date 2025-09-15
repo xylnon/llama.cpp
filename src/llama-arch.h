@@ -77,8 +77,7 @@ enum llm_arch {
     LLM_ARCH_PLM,
     LLM_ARCH_BAILINGMOE,
     LLM_ARCH_UNKNOWN,
-
-    // TODO
+    // Florence2
     LLM_ARCH_FLORENCE2,
 };
 
@@ -373,7 +372,6 @@ enum llm_tensor {
     LLM_TNSOR_DEC_FINAL_NORM,
     LLM_TNSOR_ENC_TOKEN_EMBD_NORM,
     LLM_TNSOR_DEC_TOKEN_EMBD_NORM,
-
 };
 
 enum llm_tensor_layer {

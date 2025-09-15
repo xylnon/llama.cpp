@@ -88,7 +88,29 @@
 #define TN_TOK_GLM_BOI     "adapter.boi"                 // glm-edge (these embeddings are not in text model)
 #define TN_TOK_GLM_EOI     "adapter.eoi"                 // glm-edge (these embeddings are not in text model)
 
-// TODO
+// Florence2
+#define TN_FLORENCE2_CONVS_PROJ "v.convs.%d.proj.%s"
+#define TN_FLORENCE2_CONVS_NORM "v.convs.%d.norm.%s"
+// Florence2 spatial_block
+#define TN_FLORENCE2_SP_CONV1_FN_DW "v.blk.%d.%d.spatial_block.conv1.fn.dw.%s"
+#define TN_FLORENCE2_SP_ATTN_NORM   "v.blk.%d.%d.spatial_block.window_attn.norm.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_QKV "v.blk.%d.%d.spatial_block.window_attn.fn.qkv.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_PROJ "v.blk.%d.%d.spatial_block.window_attn.fn.proj.%s"
+#define TN_FLORENCE2_SP_CONV2_FN_DW "v.blk.%d.%d.spatial_block.conv2.fn.dw.%s"
+#define TN_FLORENCE2_SP_FFN_NORM     "v.blk.%d.%d.spatial_block.ffn.norm.%s"
+#define TN_FLORENCE2_SP_FFN_FN_NET_FC1 "v.blk.%d.%d.spatial_block.ffn.fn.net.fc1.%s"
+#define TN_FLORENCE2_SP_FFN_FN_NET_FC2 "v.blk.%d.%d.spatial_block.ffn.fn.net.fc2.%s"
+// Florence2 channel_block
+#define TN_FLORENCE2_CN_CONV1_FN_DW "v.blk.%d.%d.channel_block.conv1.fn.dw.%s"
+#define TN_FLORENCE2_CN_ATTN_NORM   "v.blk.%d.%d.channel_block.channel_attn.norm.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_QKV "v.blk.%d.%d.channel_block.channel_attn.fn.qkv.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_PROJ "v.blk.%d.%d.channel_block.channel_attn.fn.proj.%s"
+#define TN_FLORENCE2_CN_CONV2_FN_DW "v.blk.%d.%d.channel_block.conv2.fn.dw.%s"
+#define TN_FLORENCE2_CN_FFN_NORM     "v.blk.%d.%d.channel_block.ffn.norm.%s"
+#define TN_FLORENCE2_CN_FFN_FN_NET_FC1 "v.blk.%d.%d.channel_block.ffn.fn.net.fc1.%s"
+#define TN_FLORENCE2_CN_FFN_FN_NET_FC2 "v.blk.%d.%d.channel_block.ffn.fn.net.fc2.%s"
+
+
 #define TN_OUT_PROJ       "mm.input_norm.%s"
 #define TN_IN_PROJ        "v.input.%d.proj.%s"
 #define TN_IN_NORM        "v.input.%d.norm.%s"

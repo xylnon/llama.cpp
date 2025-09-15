@@ -1092,44 +1092,63 @@ class TensorNameMap:
             "vision_tower.blocks.{bid}.channel_block.ffn.fn.net.fc2", # florence2
         ),
 
-        # TODO
-        MODEL_TENSOR.V_INPUT_PROJ: (
-            "vision_tower.convs.{bid}.proj", # florence2
+        # Florence2
+        MODEL_TENSOR.V_CONVS_PROJ: (
+            "vision_tower.convs.{bid}.proj", 
         ),
 
-        MODEL_TENSOR.V_INPUT_NORM: (
-            "vision_tower.convs.{bid}.norm", # florence2
+        MODEL_TENSOR.V_CONVS_NORM: (
+            "vision_tower.convs.{bid}.norm",
         ),
-
-        MODEL_TENSOR.V_SP_ATTN_Q: (
-            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.q", #florence2
+        # Florence2 spatial block
+        MODEL_TENSOR.V_SP_CONV1_FN_DW:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.conv1.fn.dw",
         ),
-        MODEL_TENSOR.V_SP_ATTN_K: (
-            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.k", #florence2
+        MODEL_TENSOR.V_SP_ATTN_NORM:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.norm",
         ),
-        MODEL_TENSOR.V_SP_ATTN_V: (
-            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.v", #florence2
+        MODEL_TENSOR.V_SP_ATTN_FN_QKV:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.qkv",
         ),
-        MODEL_TENSOR.V_SP_INPUT_NORM: (
-            "vision_tower.blocks.{bid}.spatial_block.window_attn.norm", # florence2
+        MODEL_TENSOR.V_SP_ATTN_FN_PROJ:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.proj",
         ),
-        MODEL_TENSOR.V_SP_ATTN_O: (
-            "vision_tower.blocks.{bid}.spatial_block.window_attn.fn.proj", #florence2
+        MODEL_TENSOR.V_SP_CONV2_FN_DW:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.conv2.fn.dw",
         ),
-        MODEL_TENSOR.V_SP_POST_ATTN_NORM: (
-            "vision_tower.blocks.{bid}.spatial_block.ffn.norm", # florence2
+        MODEL_TENSOR.V_SP_FFN_NORM:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.ffn.norm",
         ),
-        MODEL_TENSOR.V_SP_FFN_UP: (
-            "vision_tower.blocks.{bid}.spatial_block.ffn.fn.net.fc1", # florence2
+        MODEL_TENSOR.V_SP_FFN_FN_NET_FC1:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.ffn.fn.net.fc1",
         ),
-        MODEL_TENSOR.V_SP_FFN_DOWN: (
-            "vision_tower.blocks.{bid}.spatial_block.ffn.fn.net.fc2", # florence2
+        MODEL_TENSOR.V_SP_FFN_FN_NET_FC2:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.ffn.fn.net.fc2",
         ),
-        MODEL_TENSOR.V_SP_LAYER_SCALE_1: (
-            "vision_tower.blocks.{bid}.spatial_block.conv1.fn.dw", # florence2
+        # Florence2 channel block
+        MODEL_TENSOR.V_CN_CONV1_FN_DW:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.conv1.fn.dw",
         ),
-        MODEL_TENSOR.V_SP_LAYER_SCALE_2: (
-            "vision_tower.blocks.{bid}.spatial_block.conv2.fn.dw", # florence2
+        MODEL_TENSOR.V_CN_ATTN_NORM:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.norm",
+        ),
+        MODEL_TENSOR.V_CN_ATTN_FN_QKV:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.qkv",
+        ),
+        MODEL_TENSOR.V_CN_ATTN_FN_PROJ:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.proj",
+        ),
+        MODEL_TENSOR.V_CN_CONV2_FN_DW:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.conv2.fn.dw",
+        ),
+        MODEL_TENSOR.V_CN_FFN_NORM:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.ffn.norm",
+        ),
+        MODEL_TENSOR.V_CN_FFN_FN_NET_FC1:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.ffn.fn.net.fc1",
+        ),
+        MODEL_TENSOR.V_CN_FFN_FN_NET_FC2:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.ffn.fn.net.fc2",
         ),
 
         ################################
