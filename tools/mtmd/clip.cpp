@@ -163,17 +163,16 @@ enum patch_merge_type {
 };
 
 enum davit_temporal_embedding_type {
-    DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE = 0,
+    DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE   = 0,
     DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE = 1,
 };
 
 enum davit_image_pos_embed_type {
-    DAVIT_IMAGE_POS_EMBED_TYPE_NONE = 0,
+    DAVIT_IMAGE_POS_EMBED_TYPE_NONE           = 0,
     DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D = 1,
 };
 
 struct Davit_Hparams {
-
     float                drop_path_rate = 0.0;
     std::vector<int32_t> patch_size;
     std::vector<int32_t> patch_stride;
@@ -190,13 +189,13 @@ struct Davit_Hparams {
     std::string          model_type;
 
     struct {
-        davit_temporal_embedding_type type                    = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
-        int32_t                            max_embeddings = 0;
+        davit_temporal_embedding_type type           = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+        int32_t                       max_embeddings = 0;
     } temporal_embedding;
 
     struct {
-        davit_image_pos_embed_type type               = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
-        int32_t                         max_embeddings = 0;
+        davit_image_pos_embed_type type           = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+        int32_t                    max_embeddings = 0;
     } image_pos_embed;
 };
 
@@ -297,10 +296,10 @@ struct clip_layer {
     ggml_tensor * sp_ff_down_b = nullptr;
 
     // florence2 davit
-    ggml_tensor * convs_proj_w = nullptr;
-    ggml_tensor * convs_proj_b = nullptr;
-    ggml_tensor * convs_norm_w = nullptr;
-    ggml_tensor * convs_norm_b = nullptr;
+    ggml_tensor *              convs_proj_w = nullptr;
+    ggml_tensor *              convs_proj_b = nullptr;
+    ggml_tensor *              convs_norm_w = nullptr;
+    ggml_tensor *              convs_norm_b = nullptr;
     // florence2 davit spatial_block
     std::vector<ggml_tensor *> spatial_block_conv1_fn_dw_w;
     std::vector<ggml_tensor *> spatial_block_conv1_fn_dw_b;
@@ -892,164 +891,236 @@ struct clip_graph {
     }
 
     // TODO florence2
+
+    ggml_tensor * build_davit_dual_attention(ggml_tensor * inp, int il, int jl) const {
+        const int   n_head      = hparams.n_head;
+        const int   n_embd      = hparams.n_embd;
+        const int   n_embd_head = n_embd / n_head;
+        const float kq_scale    = 1.0f / sqrtf(float(n_embd_head));
+
+        ggml_tensor * spatial_attn = build_davit_spatial_attention(inp, kq_scale, il, jl);
+
+        ggml_tensor * channel_attn = build_davit_channel_attention(inp, kq_scale, il, jl);
+
+        // 双注意力融合
+        ggml_tensor * fused_attn = build_davit_attention_fusion(spatial_attn, channel_attn, il, jl);
+
+        return fused_attn;
+    }
+
+    ggml_tensor * build_davit_spatial_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
+        const int n_head      = hparams.n_head;
+        const int n_embd_head = hparams.n_embd / n_head;
+
+        norm_type     norm_t    = NORM_TYPE_NORMAL;
+        ggml_tensor * cur       = inp;
+        cur                     = ggml_reshape_4d(ctx0, cur, cur->ne[1], cur->ne[2], cur->ne[0], cur->ne[3]);
+        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].sp_ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+
+        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, model.layers[il].sp_ls_1_b, 1, 1, 128, 1));
+
+        // layernorm1
+        cur = build_norm(cur, model.layers[il].sp_ln_1_w, model.layers[il].sp_ln_1_b, norm_t, eps, il);
+        cb(cur, "ln1_spatial", il);
+        // 空间注意力的独立QKV投影
+        ggml_tensor * q_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_q_w, inp);
+        ggml_tensor * k_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_k_w, inp);
+        ggml_tensor * v_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_v_w, inp);
+
+        if (model.layers[il].sp_q_b) {
+            q_spatial = ggml_add(ctx0, q_spatial, model.layers[il].sp_q_b);
+        }
+        if (model.layers[il].sp_k_b) {
+            k_spatial = ggml_add(ctx0, k_spatial, model.layers[il].sp_k_b);
+        }
+        if (model.layers[il].sp_v_b) {
+            v_spatial = ggml_add(ctx0, v_spatial, model.layers[il].sp_v_b);
+        }
+
+        // 重塑为多头格式
+        q_spatial = ggml_reshape_3d(ctx0, q_spatial, n_embd_head, n_head, q_spatial->ne[1]);
+        k_spatial = ggml_reshape_3d(ctx0, k_spatial, n_embd_head, n_head, k_spatial->ne[1]);
+        v_spatial = ggml_reshape_3d(ctx0, v_spatial, n_embd_head, n_head, v_spatial->ne[1]);
+
+        cb(q_spatial, "davit_q_spatial", il);
+        cb(k_spatial, "davit_k_spatial", il);
+        cb(v_spatial, "davit_v_spatial", il);
+
+        // 执行空间注意力计算
+        ggml_tensor * spatial_out =
+            build_attn(model.layers[il].sp_o_w, model.layers[il].sp_o_b, q_spatial, k_spatial, v_spatial,
+                       nullptr,  // kq_mask
+                       kq_scale, il);
+
+        spatial_out = ggml_add(ctx0, spatial_out, inp);
+        cb(spatial_out, "davit_spatial_attn", il);
+
+        // residual add
+        cur = ggml_add(ctx0, spatial_out, inp);
+        inp = cur;  // inp = residual
+
+        cb(cur, "ffn_inp_spatial", il);
+
+        // layernorm2
+        cur = build_norm(cur, model.layers[il].sp_ln_2_w, model.layers[il].sp_ln_2_b, norm_t, eps, il);
+        cb(cur, "ffn_inp_normed_spatial", il);
+
+        // ffn
+        cur = build_ffn(cur, model.layers[il].sp_ff_up_w, model.layers[il].sp_ff_up_b, model.layers[il].ff_gate_w,
+                        model.layers[il].ff_gate_b, model.layers[il].sp_ff_down_w, model.layers[il].sp_ff_down_b,
+                        hparams.ffn_op, il);
+
+        cb(cur, "ffn_out_spatial", il);
+
+        // residual 2
+        cur = ggml_add(ctx0, inp, cur);
+        cb(cur, "layer_out_spatial", il);
+
+        return cur;
+    }
+
+    ggml_tensor * build_davit_channel_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
+        const int n_head      = hparams.n_head;
+        const int n_embd_head = hparams.n_embd / n_head;
+
+        norm_type     norm_t    = NORM_TYPE_NORMAL;
+        ggml_tensor * cur       = inp;
+        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+
+        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, model.layers[il].ls_1_b, 1, 1, 128, 1));
+        // layernorm1
+        cur = build_norm(inp, model.layers[il].ln_1_w, model.layers[il].ln_1_b, norm_t, eps, il);
+        cb(cur, "ln1_channel", il);
+
+        // 计算 Q, K, V 投影
+        ggml_tensor * q_cur = ggml_mul_mat(ctx0, model.layers[il].q_w, inp);
+        ggml_tensor * k_cur = ggml_mul_mat(ctx0, model.layers[il].k_w, inp);
+        ggml_tensor * v_cur = ggml_mul_mat(ctx0, model.layers[il].v_w, inp);
+
+        if (model.layers[il].q_b) {
+            q_cur = ggml_add(ctx0, q_cur, model.layers[il].q_b);
+        }
+        if (model.layers[il].k_b) {
+            k_cur = ggml_add(ctx0, k_cur, model.layers[il].k_b);
+        }
+        if (model.layers[il].v_b) {
+            v_cur = ggml_add(ctx0, v_cur, model.layers[il].v_b);
+        }
+
+        // 重塑为多头格式
+        q_cur = ggml_reshape_3d(ctx0, q_cur, n_embd_head, n_head, q_cur->ne[1]);
+        k_cur = ggml_reshape_3d(ctx0, k_cur, n_embd_head, n_head, k_cur->ne[1]);
+        v_cur = ggml_reshape_3d(ctx0, v_cur, n_embd_head, n_head, v_cur->ne[1]);
+        // 通道注意力：转置空间和通道维度
+        q_cur = ggml_permute(ctx0, q_cur, 1, 0, 2, 3);
+        k_cur = ggml_permute(ctx0, k_cur, 1, 0, 2, 3);
+        v_cur = ggml_permute(ctx0, v_cur, 1, 0, 2, 3);
+
+        q_cur = ggml_cont(ctx0, q_cur);
+        k_cur = ggml_cont(ctx0, k_cur);
+        v_cur = ggml_cont(ctx0, v_cur);
+
+        cb(q_cur, "davit_q_channel", il);
+        cb(k_cur, "davit_k_channel", il);
+        cb(v_cur, "davit_v_channel", il);
+
+        // 在通道维度上执行注意力
+        ggml_tensor * channel_out = build_attn(model.layers[il].o_w, model.layers[il].o_b, q_cur, k_cur, v_cur,
+                                               nullptr,  // kq_mask
+                                               kq_scale, il);
+
+        // 转置回原始维度
+        channel_out = ggml_permute(ctx0, channel_out, 1, 0, 2, 3);
+        channel_out = ggml_cont(ctx0, channel_out);
+
+        cb(channel_out, "davit_channel_attn", il);
+
+        // residual add
+        cur = ggml_add(ctx0, channel_out, inp);
+        inp = cur;  // inp = residual
+
+        cb(cur, "ffn_inp_channel", il);
+
+        // layernorm2
+        cur = build_norm(cur, model.layers[il].ln_2_w, model.layers[il].ln_2_b, norm_t, eps, il);
+        cb(cur, "ffn_inp_normed_channel", il);
+
+        // ffn
+        cur = build_ffn(cur, model.layers[il].ff_up_w, model.layers[il].ff_up_b, model.layers[il].ff_gate_w,
+                        model.layers[il].ff_gate_b, model.layers[il].ff_down_w, model.layers[il].ff_down_b,
+                        hparams.ffn_op, il);
+
+        cb(cur, "ffn_out_channel", il);
+
+        // residual 2
+        cur = ggml_add(ctx0, inp, cur);
+        cb(cur, "layer_out", il);
+
+        return cur;
+    }
+
+    ggml_tensor * build_davit_attention_fusion(ggml_tensor * spatial_attn, ggml_tensor * channel_attn, int il) const {
+        // 融合两个注意力分支
+        // 简单加法融合
+        ggml_tensor * fused = ggml_add(ctx0, spatial_attn, channel_attn);
+        cb(fused, "davit_add_fusion", il);
+        return fused;
+    }
+
+    // TODO florence2
     ggml_cgraph * build_florence2() {
         // 基本前置检查（尽量与 build_qwen2vl 保持一致）
         GGML_ASSERT(model.patch_bias == nullptr);
         GGML_ASSERT(model.class_embedding == nullptr);
 
-        const int  batch_size      = 1;
-        const bool use_window_attn = hparams.n_wa_pattern > 0;
-        const int  n_wa_pattern    = hparams.n_wa_pattern;
-        const int  n_pos           = n_patches;
-        // Florence2 没有 rope，所以不需要 num_position_ids / m-rope 特殊处理
+        auto &    dv                     = hparams.davit_hparams;
+        const int n_layers               = dv.dim_embed.size();
+        const int conv_stride[n_layers]  = dv.patch_stride;
+        const int conv_padding[n_layers] = dv.patch_padding;
+        const int batch_size[n_layers]   = dv.patch_size;
 
         // Norm 类型继承 qwen2vl 的选择逻辑（如果 Florence2 固定某种 norm，可改为常量）
-        norm_type norm_t = ctx->proj_type == PROJECTOR_TYPE_QWEN25VL ? NORM_TYPE_RMS : NORM_TYPE_NORMAL;
-
-        // --- 输入与 conv stem（Florence2: 三层 conv 开头） ---
+        norm_type     norm_t  = NORM_TYPE_NORMAL;
+        // --- 输入 ---
         ggml_tensor * inp_raw = build_inp_raw();  // [w, h, c, b]  或者仓库里相应的输入构造
-        // 第一层 conv: patch_embeddings_0
-        ggml_tensor * inp = ggml_conv_2d(ctx0, model.patch_embeddings_0, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-        // 第二层 conv: patch_embeddings_1 （这里示例为来自 raw 的另一分支并相加，参考 qwen2vl 风格）
-        {
-            auto inp_1 = ggml_conv_2d(ctx0, model.patch_embeddings_1, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-            inp        = ggml_add(ctx0, inp, inp_1);
-        }
-        // 第三层 conv: patch_embeddings_2 （Florence2 的额外 conv）
-        {
-            auto inp_2 = ggml_conv_2d(ctx0, model.patch_embeddings_2, inp_raw, patch_size, patch_size, 0, 0, 1, 1);
-            inp        = ggml_add(ctx0, inp, inp_2);
-        }
+        ggml_tensor * inpL    = inp_raw;
 
         // 确保输入尺寸可用（保持 qwen2vl 的断言逻辑）
         GGML_ASSERT(img.nx % (patch_size * 2) == 0);
         GGML_ASSERT(img.ny % (patch_size * 2) == 0);
 
-        // 与 qwen2vl 一致的张量重排/reshape 以得到 [n_embd, n_patches_x * n_patches_y, batch_size]
-        // 下面沿用 qwen2vl 的 reshape/permutation 流程（根据 patch / downsample 实际情况调整）
-        inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 1, 2, 0, 3));  // [w, h, c, b] -> [c, w, h, b]
-        inp = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, n_patches_y, batch_size);
-        inp = ggml_reshape_4d(ctx0, inp, n_embd * 2, n_patches_x / 2, 2, batch_size * (n_patches_y / 2));
-        inp = ggml_cont(ctx0, ggml_permute(ctx0, inp, 0, 2, 1, 3));
-        inp = ggml_reshape_3d(ctx0, inp, n_embd, n_patches_x * n_patches_y, batch_size);
-
-        ggml_tensor * inpL           = inp;
-        ggml_tensor * window_mask    = nullptr;
-        ggml_tensor * window_idx     = nullptr;
-        ggml_tensor * inv_window_idx = nullptr;
-
-        // Florence2 无 RoPE：不创建 positions 输入
-
-        // pre-layernorm（如果有）
-        if (model.pre_ln_w) {
-            inpL = build_norm(inpL, model.pre_ln_w, model.pre_ln_b, norm_t, eps, -1);
-        }
-
-        if (use_window_attn) {
-            // handle window attention inputs (跟 qwen2vl 一致)
-            inv_window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
-            ggml_set_name(inv_window_idx, "inv_window_idx");
-            ggml_set_input(inv_window_idx);
-            // mask for window attention
-            window_mask = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, n_pos, n_pos);
-            ggml_set_name(window_mask, "window_mask");
-            ggml_set_input(window_mask);
-
-            // reshape & get_rows like qwen2vl
-            GGML_ASSERT(batch_size == 1);
-            inpL = ggml_reshape_2d(ctx0, inpL, n_embd * 4, n_patches_x * n_patches_y * batch_size / 4);
-            inpL = ggml_get_rows(ctx0, inpL, inv_window_idx);
-            inpL = ggml_reshape_3d(ctx0, inpL, n_embd, n_patches_x * n_patches_y, batch_size);
-        }
-
         // --- Transformer blocks ---
         for (int il = 0; il < n_layer; il++) {
-            auto &     layer     = model.layers[il];
-            const bool full_attn = use_window_attn ? (il + 1) % n_wa_pattern == 0 : true;
+            auto &    layer = model.layers[il];
+            const int dep   = dv.depths[il];
 
             ggml_tensor * cur = inpL;  // residual input
 
-            // layernorm1
-            cur = build_norm(cur, layer.ln_1_w, layer.ln_1_b, norm_t, eps, il);
-            cb(cur, "ln1", il);
+            ggml_tensor * conv = ggml_conv_2d(ctx0, layer.convs_proj_w, cur, conv_stride[il], conv_stride[il],
+                                              conv_padding[il], conv_padding[il], 1, 1);
+            conv               = ggml_reshape_4d(ctx0, conv, conv->ne[2], conv->ne[0], conv->ne[1], conv->ne[3]);
+            conv               = ggml_add(ctx0, conv, layer.convs_proj_b);
+            conv               = ggml_norm(ctx0, conv, eps);
+            conv               = ggml_add(ctx0, ggml_mul(ctx0, conv, layer.convs_norm_w), layer.convs_norm_b);
+            cur                = conv;
 
-            // self-attention (注意：**没有 RoPE**，Q/K 直接来自线性投影)
-            {
-                ggml_tensor * Qcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.q_w, cur), layer.q_b);
-                ggml_tensor * Kcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.k_w, cur), layer.k_b);
-                ggml_tensor * Vcur = ggml_add(ctx0, ggml_mul_mat(ctx0, layer.v_w, cur), layer.v_b);
-
-                // reshape到多头格式
-                Qcur = ggml_reshape_3d(ctx0, Qcur, d_head, n_head, n_patches);
-                Kcur = ggml_reshape_3d(ctx0, Kcur, d_head, n_head, n_patches);
-                Vcur = ggml_reshape_3d(ctx0, Vcur, d_head, n_head, n_patches);
-
-                cb(Qcur, "Qcur", il);
-                cb(Kcur, "Kcur", il);
-                cb(Vcur, "Vcur", il);
-
-                // **这里不调用 ggml_rope_multi**，直接使用 Q/K
-                ggml_tensor * attn_mask = full_attn ? nullptr : window_mask;
-
-                cur = build_attn(layer.o_w, layer.o_b, Qcur, Kcur, Vcur, attn_mask, kq_scale, il);
-                cb(cur, "attn_out", il);
+            // davit transformer
+            for (int jl = 0; jl < dep; jl++) {
+                cur = build_davit_dual_attention(cur, il, jl);
+                cur = ggml_add(ctx0, cur, inpL);
+                cb(cur, "layer_out", il);
             }
 
-            // residual add
-            cur  = ggml_add(ctx0, cur, inpL);
-            inpL = cur;
-
-            cb(cur, "ffn_inp", il);
-
-            // layernorm2
-            cur = build_norm(cur, layer.ln_2_w, layer.ln_2_b, norm_t, eps, il);
-            cb(cur, "ffn_inp_normed", il);
-
-            // ffn
-            cur = build_ffn(cur, layer.ff_up_w, layer.ff_up_b, layer.ff_gate_w, layer.ff_gate_b, layer.ff_down_w,
-                            layer.ff_down_b, hparams.ffn_op, il);
-
-            cb(cur, "ffn_out", il);
-
-            // residual 2
-            cur = ggml_add(ctx0, inpL, cur);
-            cb(cur, "layer_out", il);
-
             inpL = cur;
         }
 
-        // post-layernorm
-        if (model.post_ln_w) {
-            inpL = build_norm(inpL, model.post_ln_w, model.post_ln_b, norm_t, eps, n_layer);
-        }
+        ggml_tensor * projected  = ggml_mul_mat(ctx0, model.mm_input_proj_w, inpL);
+        // 步骤2: 投影后归一化
+        ggml_tensor * normalized = ggml_norm(ctx0, projected, eps);
+        normalized               = ggml_mul(ctx0, normalized, model.mm_input_norm_w);
+        normalized               = ggml_add(ctx0, normalized, model.mm_input_norm_b);
 
-        // multimodal projection（和 qwen2vl 保持一致：两层线性 + 激活）
-        ggml_tensor * embeddings = inpL;
-        embeddings               = ggml_reshape_3d(ctx0, embeddings, n_embd * 4, n_pos / 4, batch_size);
-
-        embeddings = ggml_mul_mat(ctx0, model.mm_0_w, embeddings);
-        embeddings = ggml_add(ctx0, embeddings, model.mm_0_b);
-
-        // 激活
-        embeddings = ggml_gelu(ctx0, embeddings);
-
-        embeddings = ggml_mul_mat(ctx0, model.mm_1_w, embeddings);
-        embeddings = ggml_add(ctx0, embeddings, model.mm_1_b);
-
-        if (use_window_attn) {
-            window_idx = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, n_pos / 4);
-            ggml_set_name(window_idx, "window_idx");
-            ggml_set_input(window_idx);
-
-            GGML_ASSERT(batch_size == 1);
-            embeddings = ggml_reshape_2d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4);
-            embeddings = ggml_get_rows(ctx0, embeddings, window_idx);
-            embeddings =
-                ggml_reshape_3d(ctx0, embeddings, hparams.projection_dim, n_patches_x * n_patches_y / 4, batch_size);
-        }
-
-        // build the graph
-        ggml_build_forward_expand(gf, embeddings);
+        ggml_build_forward_expand(gf, normalized);
 
         return gf;
     }
@@ -2352,71 +2423,70 @@ struct clip_model_loader {
                     }
                     break;
                 case PROJECTOR_TYPE_FLORENCE2:
-                {
-                    // 1) General projector parameters
-                    get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
-                    if (hparams.image_size > 1024) {
-                        hparams.image_size = 1024;
-                    }
-                    hparams.warmup_image_size = hparams.patch_size * 8;
-                
-                    // 2) Load custom DaViT hyperparameters
-                    auto & dv = hparams.davit_hparams;   // or hparams.davit_vision if you embedded it there
-                
-                    // Scalars
-                    get_f32 (KEY_DAVIT_VISION_DROP_PATH_RATE, dv.drop_path_rate, false);
-                    get_bool(KEY_DAVIT_VISION_ENABLE_CHECKPOINT, dv.enable_checkpoint, false);
-                    get_u32 (KEY_DAVIT_VISION_WINDOW_SIZE, dv.window_size, false);
-                    get_u32 (KEY_DAVIT_VISION_PROJECT_DIM, dv.project_dim, false);
-                    get_string(KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE, dv.image_feature_source, false);
-                    get_string(KEY_DAVIT_VISION_MODEL_TYPE, dv.model_type, false);
-                
-                    // Integer arrays
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_SIZE,   dv.patch_size,   false);
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_STRIDE, dv.patch_stride, false);
-                    get_arr_int(KEY_DAVIT_VISION_PATCH_PADDING,dv.patch_padding,false);
-                    get_arr_int(KEY_DAVIT_VISION_DIM_EMBED,    dv.dim_embed,    false);
-                    get_arr_int(KEY_DAVIT_VISION_NUM_HEADS,    dv.num_heads,    false);
-                    get_arr_int(KEY_DAVIT_VISION_NUM_GROUPS,   dv.num_groups,   false);
-                    get_arr_int(KEY_DAVIT_VISION_DEPTHS,       dv.depths,       false);
-                
-                    // Boolean arrays (stored as int → convert to bool)
                     {
-                        std::vector<int> tmp;
-                        get_arr_int(KEY_DAVIT_VISION_PATCH_PRENORM, tmp, false);
-                        dv.patch_prenorm.clear();
-                        dv.patch_prenorm.reserve(tmp.size());
-                        for (int v : tmp) {
-                            dv.patch_prenorm.push_back(v != 0);
+                        // 1) General projector parameters
+                        get_u32(KEY_PROJ_SCALE_FACTOR, hparams.proj_scale_factor, false);
+                        if (hparams.image_size > 1024) {
+                            hparams.image_size = 1024;
                         }
-                    }
-                
-                    // Temporal embedding
-                    {
-                        std::string temp_type;
-                        get_string(KEY_DAVIT_VISION_TEMP_EMB_TYPE, temp_type, false);
-                        if (temp_type=="COSINE"){
-                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE;
-                        }else{
-                            dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
-                        }
-                        get_u32(KEY_DAVIT_VISION_TEMP_EMB_MAX, dv.temporal_embedding.max_embeddings, false);
-                    }
-                
-                    // Image positional embedding
-                    {
-                        std::string img_pos_type;
-                        get_string(KEY_DAVIT_VISION_IMG_POS_EMB_TYPE, img_pos_type, false);
-                        if (img_pos_type=="learned_abs_2d"){
-                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D;
-                        }else{
-                            dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
-                        }
-                        get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
-                    }
+                        hparams.warmup_image_size = hparams.patch_size * 8;
 
-                }
-                break;                   
+                        // 2) Load custom DaViT hyperparameters
+                        auto & dv = hparams.davit_hparams;  // or hparams.davit_vision if you embedded it there
+
+                        // Scalars
+                        get_f32(KEY_DAVIT_VISION_DROP_PATH_RATE, dv.drop_path_rate, false);
+                        get_bool(KEY_DAVIT_VISION_ENABLE_CHECKPOINT, dv.enable_checkpoint, false);
+                        get_u32(KEY_DAVIT_VISION_WINDOW_SIZE, dv.window_size, false);
+                        get_u32(KEY_DAVIT_VISION_PROJECT_DIM, dv.project_dim, false);
+                        get_string(KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE, dv.image_feature_source, false);
+                        get_string(KEY_DAVIT_VISION_MODEL_TYPE, dv.model_type, false);
+
+                        // Integer arrays
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_SIZE, dv.patch_size, false);
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_STRIDE, dv.patch_stride, false);
+                        get_arr_int(KEY_DAVIT_VISION_PATCH_PADDING, dv.patch_padding, false);
+                        get_arr_int(KEY_DAVIT_VISION_DIM_EMBED, dv.dim_embed, false);
+                        get_arr_int(KEY_DAVIT_VISION_NUM_HEADS, dv.num_heads, false);
+                        get_arr_int(KEY_DAVIT_VISION_NUM_GROUPS, dv.num_groups, false);
+                        get_arr_int(KEY_DAVIT_VISION_DEPTHS, dv.depths, false);
+
+                        // Boolean arrays (stored as int → convert to bool)
+                        {
+                            std::vector<int> tmp;
+                            get_arr_int(KEY_DAVIT_VISION_PATCH_PRENORM, tmp, false);
+                            dv.patch_prenorm.clear();
+                            dv.patch_prenorm.reserve(tmp.size());
+                            for (int v : tmp) {
+                                dv.patch_prenorm.push_back(v != 0);
+                            }
+                        }
+
+                        // Temporal embedding
+                        {
+                            std::string temp_type;
+                            get_string(KEY_DAVIT_VISION_TEMP_EMB_TYPE, temp_type, false);
+                            if (temp_type == "COSINE") {
+                                dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_COSINE;
+                            } else {
+                                dv.temporal_embedding.type = DAVIT_TEMPORAL_EMBEDDING_TYPE_NONE;
+                            }
+                            get_u32(KEY_DAVIT_VISION_TEMP_EMB_MAX, dv.temporal_embedding.max_embeddings, false);
+                        }
+
+                        // Image positional embedding
+                        {
+                            std::string img_pos_type;
+                            get_string(KEY_DAVIT_VISION_IMG_POS_EMB_TYPE, img_pos_type, false);
+                            if (img_pos_type == "learned_abs_2d") {
+                                dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_LEARNED_ABS_2D;
+                            } else {
+                                dv.image_pos_embed.type = DAVIT_IMAGE_POS_EMBED_TYPE_NONE;
+                            }
+                            get_u32(KEY_DAVIT_VISION_IMG_POS_EMB_MAX, dv.image_pos_embed.max_embeddings, false);
+                        }
+                    }
+                    break;
                 case PROJECTOR_TYPE_LLAMA4:
                     {
                         hparams.rope_theta = 10000.0f;
@@ -2534,7 +2604,7 @@ struct clip_model_loader {
         vision_model.position_embeddings = get_tensor(string_format(TN_POS_EMBD, prefix), false);
 
         // layers
-        if (ctx_clip.proj_type!=PROJECTOR_TYPE_FLORENCE2){
+        if (ctx_clip.proj_type != PROJECTOR_TYPE_FLORENCE2) {
             vision_model.layers.resize(hparams.n_layer);
             for (int il = 0; il < hparams.n_layer; ++il) {
                 auto & layer = vision_model.layers[il];
@@ -2713,17 +2783,17 @@ struct clip_model_loader {
             case PROJECTOR_TYPE_FLORENCE2:
                 {
                     // florence2
-                    auto & dv = hparams.davit_hparams;   // or hparams.davit_vision if you embedded it there
-                    int num_stages = (int)dv.dim_embed.size();
+                    auto & dv         = hparams.davit_hparams;  // or hparams.davit_vision if you embedded it there
+                    int    num_stages = (int) dv.dim_embed.size();
                     vision_model.layers.clear();
-                    for(int i=0;i<num_stages;i++){
-                        clip_layer new_layer = clip_layer();
+                    for (int i = 0; i < num_stages; i++) {
+                        clip_layer new_layer   = clip_layer();
                         // convs
                         new_layer.convs_proj_w = get_tensor(string_format(TN_FLORENCE2_CONVS_PROJ, i, "weight"));
                         new_layer.convs_proj_b = get_tensor(string_format(TN_FLORENCE2_CONVS_PROJ, i, "bias"));
                         new_layer.convs_norm_w = get_tensor(string_format(TN_FLORENCE2_CONVS_NORM, i, "weight"));
                         new_layer.convs_norm_b = get_tensor(string_format(TN_FLORENCE2_CONVS_NORM, i, "bias"));
-                        for(int j=0;j<dv.depths[i];j++){
+                        for (int j = 0; j < dv.depths[i]; j++) {
                             // spatial_block
                             new_layer.spatial_block_conv1_fn_dw_w.push_back(
                                 get_tensor(string_format(TN_FLORENCE2_SP_CONV1_FN_DW, i, j, "weight")));
@@ -2790,9 +2860,9 @@ struct clip_model_loader {
                                 get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC2, i, j, "weight")));
                             new_layer.channel_block_ffn_fn_net_fc2_b.push_back(
                                 get_tensor(string_format(TN_FLORENCE2_CN_FFN_FN_NET_FC2, i, j, "bias")));
-                            }
-                        vision_model.layers.push_back(new_layer);
                         }
+                        vision_model.layers.push_back(new_layer);
+                    }
                 }
                 break;
             case PROJECTOR_TYPE_GEMMA3:
