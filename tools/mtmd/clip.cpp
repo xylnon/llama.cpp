@@ -911,18 +911,21 @@ struct clip_graph {
     ggml_tensor * build_davit_spatial_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
         const int n_head      = hparams.n_head;
         const int n_embd_head = hparams.n_embd / n_head;
+        auto &    layer       = model.layer[il];
 
-        norm_type     norm_t    = NORM_TYPE_NORMAL;
-        ggml_tensor * cur       = inp;
-        cur                     = ggml_reshape_4d(ctx0, cur, cur->ne[1], cur->ne[2], cur->ne[0], cur->ne[3]);
-        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].sp_ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+        norm_type     norm_t = NORM_TYPE_NORMAL;
+        ggml_tensor * cur    = inp;
+        cur                  = ggml_reshape_4d(ctx0, cur, cur->ne[1], cur->ne[2], cur->ne[0], cur->ne[3]);
+        ggml_tensor * conv1_out =
+            ggml_conv_2d_dw_direct(ctx0, layer.spatial_block_conv1_fn_dw_w[jl], inp, 1, 1, 1, 1, 1, 1);
 
-        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, model.layers[il].sp_ls_1_b, 1, 1, 128, 1));
+        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, layer.spatial_block_conv1_fn_dw_b[jl], 1, 1, 128, 1));
 
         // layernorm1
-        cur = build_norm(cur, model.layers[il].sp_ln_1_w, model.layers[il].sp_ln_1_b, norm_t, eps, il);
+        cur =
+            build_norm(cur, layer.spatial_block_attn_norm_w[jl], layer.spatial_block_attn_norm_b[jl], norm_t, eps, il);
         cb(cur, "ln1_spatial", il);
-        // 空间注意力的独立QKV投影
+        // need to separate
         ggml_tensor * q_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_q_w, inp);
         ggml_tensor * k_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_k_w, inp);
         ggml_tensor * v_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_v_w, inp);
@@ -947,10 +950,10 @@ struct clip_graph {
         cb(v_spatial, "davit_v_spatial", il);
 
         // 执行空间注意力计算
-        ggml_tensor * spatial_out =
-            build_attn(model.layers[il].sp_o_w, model.layers[il].sp_o_b, q_spatial, k_spatial, v_spatial,
-                       nullptr,  // kq_mask
-                       kq_scale, il);
+        ggml_tensor * spatial_out = build_attn(layer.spatial_block_attn_fn_proj_w[jl],
+                                               layer.spatial_block_attn_fn_proj_b[jl], q_spatial, k_spatial, v_spatial,
+                                               nullptr,  // kq_mask
+                                               kq_scale, il);
 
         spatial_out = ggml_add(ctx0, spatial_out, inp);
         cb(spatial_out, "davit_spatial_attn", il);
@@ -962,13 +965,14 @@ struct clip_graph {
         cb(cur, "ffn_inp_spatial", il);
 
         // layernorm2
-        cur = build_norm(cur, model.layers[il].sp_ln_2_w, model.layers[il].sp_ln_2_b, norm_t, eps, il);
+        cur = build_norm(cur, layer.spatial_block_ffn_norm_w[jl], layer.spatial_block_ffn_norm_b[jl], norm_t, eps, il);
         cb(cur, "ffn_inp_normed_spatial", il);
 
         // ffn
-        cur = build_ffn(cur, model.layers[il].sp_ff_up_w, model.layers[il].sp_ff_up_b, model.layers[il].ff_gate_w,
-                        model.layers[il].ff_gate_b, model.layers[il].sp_ff_down_w, model.layers[il].sp_ff_down_b,
-                        hparams.ffn_op, il);
+        cur =
+            build_ffn(cur, layer.spatial_block_ffn_fn_net_fc1_w[jl], layer.spatial_block_ffn_fn_net_fc1_b[jl],
+                      model.layers[il].ff_gate_w, model.layers[il].ff_gate_b, layer.spatial_block_ffn_fn_net_fc2_w[jl],
+                      layer.spatial_block_ffn_fn_net_fc2_b[jl], hparams.ffn_op, il);
 
         cb(cur, "ffn_out_spatial", il);
 
@@ -982,17 +986,20 @@ struct clip_graph {
     ggml_tensor * build_davit_channel_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
         const int n_head      = hparams.n_head;
         const int n_embd_head = hparams.n_embd / n_head;
+        auto &    layer       = model.layer[il];
 
-        norm_type     norm_t    = NORM_TYPE_NORMAL;
-        ggml_tensor * cur       = inp;
-        ggml_tensor * conv1_out = ggml_conv_2d_dw_direct(ctx0, model.layers[il].ls_1_w, inp, 1, 1, 1, 1, 1, 1);
+        norm_type     norm_t = NORM_TYPE_NORMAL;
+        ggml_tensor * cur    = inp;
+        ggml_tensor * conv1_out =
+            ggml_conv_2d_dw_direct(ctx0, layer.channel_block_conv1_fn_dw_w[jl], inp, 1, 1, 1, 1, 1, 1);
 
-        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, model.layers[il].ls_1_b, 1, 1, 128, 1));
+        cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, layer.channel_block_conv1_fn_dw_b[jl], 1, 1, 128, 1));
         // layernorm1
-        cur = build_norm(inp, model.layers[il].ln_1_w, model.layers[il].ln_1_b, norm_t, eps, il);
+        cur =
+            build_norm(inp, layer.channel_block_attn_norm_w[jl], layer.channel_block_attn_norm_b[jl], norm_t, eps, il);
         cb(cur, "ln1_channel", il);
 
-        // 计算 Q, K, V 投影
+        // need to separate
         ggml_tensor * q_cur = ggml_mul_mat(ctx0, model.layers[il].q_w, inp);
         ggml_tensor * k_cur = ggml_mul_mat(ctx0, model.layers[il].k_w, inp);
         ggml_tensor * v_cur = ggml_mul_mat(ctx0, model.layers[il].v_w, inp);
@@ -1024,8 +1031,8 @@ struct clip_graph {
         cb(k_cur, "davit_k_channel", il);
         cb(v_cur, "davit_v_channel", il);
 
-        // 在通道维度上执行注意力
-        ggml_tensor * channel_out = build_attn(model.layers[il].o_w, model.layers[il].o_b, q_cur, k_cur, v_cur,
+        ggml_tensor * channel_out = build_attn(layer.channel_block_attn_fn_proj_w[jl],
+                                               layer.channel_block_attn_fn_proj_b[jl], q_cur, k_cur, v_cur,
                                                nullptr,  // kq_mask
                                                kq_scale, il);
 
@@ -1042,13 +1049,14 @@ struct clip_graph {
         cb(cur, "ffn_inp_channel", il);
 
         // layernorm2
-        cur = build_norm(cur, model.layers[il].ln_2_w, model.layers[il].ln_2_b, norm_t, eps, il);
+        cur = build_norm(cur, layer.channel_block_ffn_norm_w[jl], layer.channel_block_ffn_norm_b[jl], norm_t, eps, il);
         cb(cur, "ffn_inp_normed_channel", il);
 
         // ffn
-        cur = build_ffn(cur, model.layers[il].ff_up_w, model.layers[il].ff_up_b, model.layers[il].ff_gate_w,
-                        model.layers[il].ff_gate_b, model.layers[il].ff_down_w, model.layers[il].ff_down_b,
-                        hparams.ffn_op, il);
+        cur =
+            build_ffn(cur, layer.channel_block_ffn_fn_net_fc1_w[jl], layer.channel_block_ffn_fn_net_fc1_b[jl],
+                      model.layers[il].ff_gate_w, model.layers[il].ff_gate_b, layer.channel_block_ffn_fn_net_fc2_w[jl],
+                      layer.channel_block_ffn_fn_net_fc2_b[jl], hparams.ffn_op, il);
 
         cb(cur, "ffn_out_channel", il);
 
@@ -1114,6 +1122,7 @@ struct clip_graph {
             inpL = cur;
         }
 
+        // no image projection?
         ggml_tensor * projected  = ggml_mul_mat(ctx0, model.mm_input_proj_w, inpL);
         // 步骤2: 投影后归一化
         ggml_tensor * normalized = ggml_norm(ctx0, projected, eps);
