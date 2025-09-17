@@ -911,7 +911,7 @@ struct clip_graph {
     ggml_tensor * build_davit_spatial_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
         const int n_head      = hparams.n_head;
         const int n_embd_head = hparams.n_embd / n_head;
-        auto &    layer       = model.layer[il];
+        auto &    layer       = model.layers[il];
 
         norm_type     norm_t = NORM_TYPE_NORMAL;
         ggml_tensor * cur    = inp;
@@ -986,7 +986,7 @@ struct clip_graph {
     ggml_tensor * build_davit_channel_attention(ggml_tensor * inp, float kq_scale, int il, int jl) const {
         const int n_head      = hparams.n_head;
         const int n_embd_head = hparams.n_embd / n_head;
-        auto &    layer       = model.layer[il];
+        auto &    layer       = model.layers[il];
 
         norm_type     norm_t = NORM_TYPE_NORMAL;
         ggml_tensor * cur    = inp;
@@ -1081,11 +1081,11 @@ struct clip_graph {
         GGML_ASSERT(model.patch_bias == nullptr);
         GGML_ASSERT(model.class_embedding == nullptr);
 
-        auto &    dv                     = hparams.davit_hparams;
-        const int n_layers               = dv.dim_embed.size();
-        const int conv_stride[n_layers]  = dv.patch_stride;
-        const int conv_padding[n_layers] = dv.patch_padding;
-        const int batch_size[n_layers]   = dv.patch_size;
+        auto &               dv           = hparams.davit_hparams;
+        const int            n_layers     = dv.dim_embed.size();
+        std::vector<int32_t> conv_stride  = dv.patch_stride;
+        std::vector<int32_t> conv_padding = dv.patch_padding;
+        std::vector<int32_t> batch_size   = dv.patch_size;
 
         // Norm 类型继承 qwen2vl 的选择逻辑（如果 Florence2 固定某种 norm，可改为常量）
         norm_type     norm_t  = NORM_TYPE_NORMAL;
