@@ -6229,24 +6229,39 @@ class Florence2VisionModel(MmprojModel):
             mul_idx_keys = ["spatial_block", "channel_block"]
             mul_idx_key = next((k for k in mul_idx_keys if k in name), None)
             if mul_idx_key is not None:
-                # Multiple index tensors to be concatenated later
-                indexs, new_name = self.collect_multi_index(name)
-                if bid is not None:
-                    assert bid == indexs[0], f"bid {bid} not match indexs {indexs} in tensor name {name}"
+                tensors_to_store = []
+                if ".qkv." in name:
+                    if data_torch.ndim == 2:
+                        c3, _ = data_torch.shape
+                    else:
+                        c3 = data_torch.shape[0]
+                    assert c3 % 3 ==0, f"QKV tensor shape invalid: {data_torch.shape}"
+                    c = c3 // 3
+                    tensors_to_store = [
+                        (name.replace(".qkv.", ".q."), data_torch[:c]),
+                        (name.replace(".qkv.", ".k."), data_torch[c:2*c]),
+                        (name.replace(".qkv.", ".v."), data_torch[2*c:])
+                    ]
                 else:
-                    bid = indexs[0]
-                assert name.count(mul_idx_key) == 1, f"mul_idx_key {mul_idx_key} found multiple times in tensor name {name}"
-                return [(self.map_tensor_name(new_name).replace("<second_idx>", str(indexs[1])), data_torch)]
-
-            return [(self.map_tensor_name(name), data_torch)]
+                    tensors_to_store = [(name, data_torch)]
+                results = []
+                for store_name, store_tensor in tensors_to_store:
+                    # Multiple index tensors to be concatenated later
+                    indexs, new_name = self.collect_multi_index(store_name)
+                    if bid is not None:
+                        assert bid == indexs[0], f"bid {bid} not match indexs {indexs} in tensor name {name}"
+                    else:
+                        bid = indexs[0]
+                    assert name.count(mul_idx_key) == 1, f"mul_idx_key {mul_idx_key} found multiple times in tensor name {name}"
+                    results.append((self.map_tensor_name(new_name).replace("<second_idx>", str(indexs[1])), store_tensor))
+                    
+                return results
 
         # 行列 pos_embed
         elif "image_pos_embed.row_embeddings" in name:
             self._pos_embed_cache["row"] = data_torch
-            return []
         elif "image_pos_embed.column_embeddings" in name:
             self._pos_embed_cache["col"] = data_torch
-            return []
 
         if "row" in self._pos_embed_cache and "col" in self._pos_embed_cache:
             row_emb = self._pos_embed_cache.pop("row")  # (50, 512)
@@ -6283,7 +6298,7 @@ class Florence2VisionModel(MmprojModel):
             return [(self.map_tensor_name("image_projection.weight"), data_torch)]
         elif name.startswith("visual_temporal_embed"):
             print(name)
-            return [(self.map_tensor_name(name), data_torch)]
+            return [(self.map_tensor_name(name)+".weight", data_torch)]
 
         return []
     

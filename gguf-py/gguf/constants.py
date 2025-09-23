@@ -512,6 +512,9 @@ class MODEL_TENSOR(IntEnum):
     V_SP_CONV1_FN_DW     = auto()
     V_SP_ATTN_NORM       = auto()
     V_SP_ATTN_FN_QKV     = auto()
+    V_SP_ATTN_FN_Q     = auto()
+    V_SP_ATTN_FN_K     = auto()
+    V_SP_ATTN_FN_V     = auto()
     V_SP_ATTN_FN_PROJ    = auto()
     V_SP_CONV2_FN_DW     = auto()
     V_SP_FFN_NORM        = auto()
@@ -521,6 +524,9 @@ class MODEL_TENSOR(IntEnum):
     V_CN_CONV1_FN_DW     = auto()
     V_CN_ATTN_NORM       = auto()
     V_CN_ATTN_FN_QKV     = auto()
+    V_CN_ATTN_FN_Q     = auto()
+    V_CN_ATTN_FN_K     = auto()
+    V_CN_ATTN_FN_V     = auto()
     V_CN_ATTN_FN_PROJ    = auto()
     V_CN_CONV2_FN_DW     = auto()
     V_CN_FFN_NORM        = auto()
@@ -882,6 +888,9 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.V_SP_CONV1_FN_DW:          "v.blk.{bid}.<second_idx>.spatial_block.conv1.fn.dw",
     MODEL_TENSOR.V_SP_ATTN_NORM:            "v.blk.{bid}.<second_idx>.spatial_block.window_attn.norm",
     MODEL_TENSOR.V_SP_ATTN_FN_QKV:          "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.qkv",
+    MODEL_TENSOR.V_SP_ATTN_FN_Q:          "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.q",
+    MODEL_TENSOR.V_SP_ATTN_FN_K:          "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.k",
+    MODEL_TENSOR.V_SP_ATTN_FN_V:          "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.v",
     MODEL_TENSOR.V_SP_ATTN_FN_PROJ:         "v.blk.{bid}.<second_idx>.spatial_block.window_attn.fn.proj", 
     MODEL_TENSOR.V_SP_CONV2_FN_DW:          "v.blk.{bid}.<second_idx>.spatial_block.conv2.fn.dw",
     MODEL_TENSOR.V_SP_FFN_NORM:             "v.blk.{bid}.<second_idx>.spatial_block.ffn.norm",
@@ -891,6 +900,9 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.V_CN_CONV1_FN_DW:          "v.blk.{bid}.<second_idx>.channel_block.conv1.fn.dw",
     MODEL_TENSOR.V_CN_ATTN_NORM:            "v.blk.{bid}.<second_idx>.channel_block.channel_attn.norm",
     MODEL_TENSOR.V_CN_ATTN_FN_QKV:          "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.qkv",
+    MODEL_TENSOR.V_CN_ATTN_FN_Q:          "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.q",
+    MODEL_TENSOR.V_CN_ATTN_FN_K:          "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.k",
+    MODEL_TENSOR.V_CN_ATTN_FN_V:          "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.v",
     MODEL_TENSOR.V_CN_ATTN_FN_PROJ:         "v.blk.{bid}.<second_idx>.channel_block.channel_attn.fn.proj", 
     MODEL_TENSOR.V_CN_CONV2_FN_DW:          "v.blk.{bid}.<second_idx>.channel_block.conv2.fn.dw", 
     MODEL_TENSOR.V_CN_FFN_NORM:             "v.blk.{bid}.<second_idx>.channel_block.ffn.norm",
@@ -965,6 +977,9 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.V_SP_CONV1_FN_DW,
         MODEL_TENSOR.V_SP_ATTN_NORM,
         MODEL_TENSOR.V_SP_ATTN_FN_QKV,
+        MODEL_TENSOR.V_SP_ATTN_FN_Q,
+        MODEL_TENSOR.V_SP_ATTN_FN_K,
+        MODEL_TENSOR.V_SP_ATTN_FN_V,
         MODEL_TENSOR.V_SP_ATTN_FN_PROJ,
         MODEL_TENSOR.V_SP_CONV2_FN_DW,
         MODEL_TENSOR.V_SP_FFN_NORM,
@@ -974,6 +989,9 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.V_CN_CONV1_FN_DW,
         MODEL_TENSOR.V_CN_ATTN_NORM,
         MODEL_TENSOR.V_CN_ATTN_FN_QKV,
+        MODEL_TENSOR.V_CN_ATTN_FN_Q,
+        MODEL_TENSOR.V_CN_ATTN_FN_K,
+        MODEL_TENSOR.V_CN_ATTN_FN_V,
         MODEL_TENSOR.V_CN_ATTN_FN_PROJ,
         MODEL_TENSOR.V_CN_CONV2_FN_DW,
         MODEL_TENSOR.V_CN_FFN_NORM,

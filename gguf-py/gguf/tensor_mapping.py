@@ -1110,6 +1110,15 @@ class TensorNameMap:
         MODEL_TENSOR.V_SP_ATTN_FN_QKV:(
             "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.qkv",
         ),
+        MODEL_TENSOR.V_SP_ATTN_FN_Q:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.q",
+        ),
+        MODEL_TENSOR.V_SP_ATTN_FN_K:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.k",
+        ),
+        MODEL_TENSOR.V_SP_ATTN_FN_V:(
+            "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.v",
+        ),
         MODEL_TENSOR.V_SP_ATTN_FN_PROJ:(
             "vision_tower.blocks.{bid}.<second_idx>.spatial_block.window_attn.fn.proj",
         ),
@@ -1134,6 +1143,15 @@ class TensorNameMap:
         ),
         MODEL_TENSOR.V_CN_ATTN_FN_QKV:(
             "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.qkv",
+        ),
+        MODEL_TENSOR.V_CN_ATTN_FN_Q:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.q",
+        ),
+        MODEL_TENSOR.V_CN_ATTN_FN_K:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.k",
+        ),
+        MODEL_TENSOR.V_CN_ATTN_FN_V:(
+            "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.v",
         ),
         MODEL_TENSOR.V_CN_ATTN_FN_PROJ:(
             "vision_tower.blocks.{bid}.<second_idx>.channel_block.channel_attn.fn.proj",

@@ -89,27 +89,33 @@
 #define TN_TOK_GLM_EOI     "adapter.eoi"                 // glm-edge (these embeddings are not in text model)
 
 // Florence2
-#define TN_FLORENCE2_CONVS_PROJ "v.convs.%d.proj.%s"
-#define TN_FLORENCE2_CONVS_NORM "v.convs.%d.norm.%s"
+#define TN_FLORENCE2_CONVS_PROJ        "v.convs.%d.proj.%s"
+#define TN_FLORENCE2_CONVS_NORM        "v.convs.%d.norm.%s"
 // Florence2 spatial_block
-#define TN_FLORENCE2_SP_CONV1_FN_DW "v.blk.%d.%d.spatial_block.conv1.fn.dw.%s"
-#define TN_FLORENCE2_SP_ATTN_NORM   "v.blk.%d.%d.spatial_block.window_attn.norm.%s"
-#define TN_FLORENCE2_SP_ATTN_FN_QKV "v.blk.%d.%d.spatial_block.window_attn.fn.qkv.%s"
-#define TN_FLORENCE2_SP_ATTN_FN_PROJ "v.blk.%d.%d.spatial_block.window_attn.fn.proj.%s"
-#define TN_FLORENCE2_SP_CONV2_FN_DW "v.blk.%d.%d.spatial_block.conv2.fn.dw.%s"
-#define TN_FLORENCE2_SP_FFN_NORM     "v.blk.%d.%d.spatial_block.ffn.norm.%s"
+#define TN_FLORENCE2_SP_CONV1_FN_DW    "v.blk.%d.%d.spatial_block.conv1.fn.dw.%s"
+#define TN_FLORENCE2_SP_ATTN_NORM      "v.blk.%d.%d.spatial_block.window_attn.norm.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_QKV    "v.blk.%d.%d.spatial_block.window_attn.fn.qkv.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_Q      "v.blk.%d.%d.spatial_block.window_attn.fn.q.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_K      "v.blk.%d.%d.spatial_block.window_attn.fn.k.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_V      "v.blk.%d.%d.spatial_block.window_attn.fn.v.%s"
+#define TN_FLORENCE2_SP_ATTN_FN_PROJ   "v.blk.%d.%d.spatial_block.window_attn.fn.proj.%s"
+#define TN_FLORENCE2_SP_CONV2_FN_DW    "v.blk.%d.%d.spatial_block.conv2.fn.dw.%s"
+#define TN_FLORENCE2_SP_FFN_NORM       "v.blk.%d.%d.spatial_block.ffn.norm.%s"
 #define TN_FLORENCE2_SP_FFN_FN_NET_FC1 "v.blk.%d.%d.spatial_block.ffn.fn.net.fc1.%s"
 #define TN_FLORENCE2_SP_FFN_FN_NET_FC2 "v.blk.%d.%d.spatial_block.ffn.fn.net.fc2.%s"
 // Florence2 channel_block
-#define TN_FLORENCE2_CN_CONV1_FN_DW "v.blk.%d.%d.channel_block.conv1.fn.dw.%s"
-#define TN_FLORENCE2_CN_ATTN_NORM   "v.blk.%d.%d.channel_block.channel_attn.norm.%s"
-#define TN_FLORENCE2_CN_ATTN_FN_QKV "v.blk.%d.%d.channel_block.channel_attn.fn.qkv.%s"
-#define TN_FLORENCE2_CN_ATTN_FN_PROJ "v.blk.%d.%d.channel_block.channel_attn.fn.proj.%s"
-#define TN_FLORENCE2_CN_CONV2_FN_DW "v.blk.%d.%d.channel_block.conv2.fn.dw.%s"
-#define TN_FLORENCE2_CN_FFN_NORM     "v.blk.%d.%d.channel_block.ffn.norm.%s"
+#define TN_FLORENCE2_CN_CONV1_FN_DW    "v.blk.%d.%d.channel_block.conv1.fn.dw.%s"
+#define TN_FLORENCE2_CN_ATTN_NORM      "v.blk.%d.%d.channel_block.channel_attn.norm.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_QKV    "v.blk.%d.%d.channel_block.channel_attn.fn.qkv.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_Q      "v.blk.%d.%d.channel_block.channel_attn.fn.q.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_K      "v.blk.%d.%d.channel_block.channel_attn.fn.k.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_V      "v.blk.%d.%d.channel_block.channel_attn.fn.v.%s"
+#define TN_FLORENCE2_CN_ATTN_FN_PROJ   "v.blk.%d.%d.channel_block.channel_attn.fn.proj.%s"
+#define TN_FLORENCE2_CN_CONV2_FN_DW    "v.blk.%d.%d.channel_block.conv2.fn.dw.%s"
+#define TN_FLORENCE2_CN_FFN_NORM       "v.blk.%d.%d.channel_block.ffn.norm.%s"
 #define TN_FLORENCE2_CN_FFN_FN_NET_FC1 "v.blk.%d.%d.channel_block.ffn.fn.net.fc1.%s"
 #define TN_FLORENCE2_CN_FFN_FN_NET_FC2 "v.blk.%d.%d.channel_block.ffn.fn.net.fc2.%s"
-
+// florence2 embeddings and projections
 
 #define TN_OUT_PROJ       "mm.input_norm.%s"
 #define TN_IN_PROJ        "v.input.%d.proj.%s"
@@ -147,28 +153,28 @@
 #define TN_MM_NORM_MID  "mm.a.norm_mid.%s"
 
 // DAViT vision keys (Florence2)
-#define KEY_DAVIT_VISION_DROP_PATH_RATE           "davit_vision.drop_path_rate"
-#define KEY_DAVIT_VISION_PATCH_SIZE               "davit_vision.patch_size"
-#define KEY_DAVIT_VISION_PATCH_STRIDE             "davit_vision.patch_stride"
-#define KEY_DAVIT_VISION_PATCH_PADDING            "davit_vision.patch_padding"
-#define KEY_DAVIT_VISION_PATCH_PRENORM            "davit_vision.patch_prenorm"
-#define KEY_DAVIT_VISION_ENABLE_CHECKPOINT        "davit_vision.enable_checkpoint"
-#define KEY_DAVIT_VISION_DIM_EMBED                "davit_vision.dim_embed"
-#define KEY_DAVIT_VISION_NUM_HEADS                "davit_vision.num_heads"
-#define KEY_DAVIT_VISION_NUM_GROUPS               "davit_vision.num_groups"
-#define KEY_DAVIT_VISION_DEPTHS                   "davit_vision.depths"
-#define KEY_DAVIT_VISION_WINDOW_SIZE              "davit_vision.window_size"
-#define KEY_DAVIT_VISION_PROJECT_DIM              "davit_vision.projection_dim"
-#define KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE     "davit_vision.image_feature_source"
-#define KEY_DAVIT_VISION_MODEL_TYPE               "davit_vision.model_type"
+#define KEY_DAVIT_VISION_DROP_PATH_RATE       "davit_vision.drop_path_rate"
+#define KEY_DAVIT_VISION_PATCH_SIZE           "davit_vision.patch_size"
+#define KEY_DAVIT_VISION_PATCH_STRIDE         "davit_vision.patch_stride"
+#define KEY_DAVIT_VISION_PATCH_PADDING        "davit_vision.patch_padding"
+#define KEY_DAVIT_VISION_PATCH_PRENORM        "davit_vision.patch_prenorm"
+#define KEY_DAVIT_VISION_ENABLE_CHECKPOINT    "davit_vision.enable_checkpoint"
+#define KEY_DAVIT_VISION_DIM_EMBED            "davit_vision.dim_embed"
+#define KEY_DAVIT_VISION_NUM_HEADS            "davit_vision.num_heads"
+#define KEY_DAVIT_VISION_NUM_GROUPS           "davit_vision.num_groups"
+#define KEY_DAVIT_VISION_DEPTHS               "davit_vision.depths"
+#define KEY_DAVIT_VISION_WINDOW_SIZE          "davit_vision.window_size"
+#define KEY_DAVIT_VISION_PROJECT_DIM          "davit_vision.projection_dim"
+#define KEY_DAVIT_VISION_IMAGE_FEATURE_SOURCE "davit_vision.image_feature_source"
+#define KEY_DAVIT_VISION_MODEL_TYPE           "davit_vision.model_type"
 
 // temporal embedding
-#define KEY_DAVIT_VISION_TEMP_EMB_TYPE            "davit_vision.temporal_embedding.type"
-#define KEY_DAVIT_VISION_TEMP_EMB_MAX             "davit_vision.temporal_embedding.max_embeddings"
+#define KEY_DAVIT_VISION_TEMP_EMB_TYPE "davit_vision.temporal_embedding.type"
+#define KEY_DAVIT_VISION_TEMP_EMB_MAX  "davit_vision.temporal_embedding.max_embeddings"
 
 // image pos embedding
-#define KEY_DAVIT_VISION_IMG_POS_EMB_TYPE         "davit_vision.image_pos_embed.type"
-#define KEY_DAVIT_VISION_IMG_POS_EMB_MAX          "davit_vision.image_pos_embed.max_embeddings"
+#define KEY_DAVIT_VISION_IMG_POS_EMB_TYPE "davit_vision.image_pos_embed.type"
+#define KEY_DAVIT_VISION_IMG_POS_EMB_MAX  "davit_vision.image_pos_embed.max_embeddings"
 
 // align x to upper multiple of n
 #define CLIP_ALIGN(x, n) ((((x) + (n) - 1) / (n)) * (n))
