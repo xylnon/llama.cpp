@@ -815,7 +815,7 @@ TENSOR_NAMES: dict[MODEL_TENSOR, str] = {
     MODEL_TENSOR.ENC_FFN_DOWN:              "enc.blk.{bid}.ffn_down",
     MODEL_TENSOR.ENC_FFN_UP:                "enc.blk.{bid}.ffn_up",
     MODEL_TENSOR.ENC_OUTPUT_NORM:           "enc.output_norm",
-    # TODO
+    # florence TODO
     MODEL_TENSOR.ENC_POS_EMBD:              "enc.pos_embd",
     MODEL_TENSOR.DEC_POS_EMBD:              "dec.pos_embd",
     MODEL_TENSOR.ENC_FINAL_NORM:            "enc.blk.{bid}.final_norm",
@@ -2196,21 +2196,6 @@ MODEL_TENSORS: dict[MODEL_ARCH, list[MODEL_TENSOR]] = {
         MODEL_TENSOR.DEC_POS_EMBD,
         MODEL_TENSOR.DEC_FINAL_NORM,
         MODEL_TENSOR.DEC_TOKEN_EMBD_NORM,
-
-        # # 视觉编码器张量  TODO
-        # MODEL_TENSOR.V_ENC_EMBD_PATCH,  
-        # MODEL_TENSOR.V_ENC_EMBD_POS,  
-        # MODEL_TENSOR.V_ENC_ATTN_Q,
-        # MODEL_TENSOR.V_ENC_ATTN_K,
-        # MODEL_TENSOR.V_ENC_ATTN_V,
-        # MODEL_TENSOR.V_ENC_INPUT_NORM,
-        # MODEL_TENSOR.V_ENC_ATTN_O,
-        # MODEL_TENSOR.V_ENC_POST_ATTN_NORM,
-        # MODEL_TENSOR.V_ENC_FFN_UP,
-        # MODEL_TENSOR.V_ENC_FFN_DOWN,
-  
-        # # 多模态投影张量  
-        # MODEL_TENSOR.V_MMPROJ,
     ],
 }
 
