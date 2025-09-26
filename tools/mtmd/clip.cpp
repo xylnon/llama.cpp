@@ -932,27 +932,28 @@ struct clip_graph {
         ggml_tensor * cur    = inp;
         cur                  = ggml_reshape_4d(ctx0, cur, cur->ne[1], cur->ne[2], cur->ne[0], cur->ne[3]);
         ggml_tensor * conv1_out =
-            ggml_conv_2d_dw_direct(ctx0, layer.spatial_block_conv1_fn_dw_w[jl], inp, 1, 1, 1, 1, 1, 1);
+            ggml_conv_2d_dw_direct(ctx0, layer.spatial_block_conv1_fn_dw_w[jl], cur, 1, 1, 1, 1, 1, 1);
 
         cur = ggml_add(ctx0, conv1_out, ggml_reshape_4d(ctx0, layer.spatial_block_conv1_fn_dw_b[jl], 1, 1, 128, 1));
 
+        cur = ggml_reshape_4d(ctx0, cur, cur->ne[2], cur->ne[0], cur->ne[1], cur->ne[3]);
         // layernorm1
         cur =
             build_norm(cur, layer.spatial_block_attn_norm_w[jl], layer.spatial_block_attn_norm_b[jl], norm_t, eps, il);
         cb(cur, "ln1_spatial", il);
         // need to separate
-        ggml_tensor * q_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_q_w, inp);
-        ggml_tensor * k_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_k_w, inp);
-        ggml_tensor * v_spatial = ggml_mul_mat(ctx0, model.layers[il].sp_v_w, inp);
+        ggml_tensor * q_spatial = ggml_mul_mat(ctx0, model.layers[il].spatial_block_attn_fn_q_w[jl], cur);
+        ggml_tensor * k_spatial = ggml_mul_mat(ctx0, model.layers[il].spatial_block_attn_fn_k_w[jl], cur);
+        ggml_tensor * v_spatial = ggml_mul_mat(ctx0, model.layers[il].spatial_block_attn_fn_v_w[jl], cur);
 
         if (model.layers[il].sp_q_b) {
-            q_spatial = ggml_add(ctx0, q_spatial, model.layers[il].sp_q_b);
+            q_spatial = ggml_add(ctx0, q_spatial, model.layers[il].spatial_block_attn_fn_q_b[jl]);
         }
         if (model.layers[il].sp_k_b) {
-            k_spatial = ggml_add(ctx0, k_spatial, model.layers[il].sp_k_b);
+            k_spatial = ggml_add(ctx0, k_spatial, model.layers[il].spatial_block_attn_fn_k_b[jl]);
         }
         if (model.layers[il].sp_v_b) {
-            v_spatial = ggml_add(ctx0, v_spatial, model.layers[il].sp_v_b);
+            v_spatial = ggml_add(ctx0, v_spatial, model.layers[il].spatial_block_attn_fn_v_b[jl]);
         }
 
         // 重塑为多头格式
@@ -1005,6 +1006,7 @@ struct clip_graph {
 
         norm_type     norm_t = NORM_TYPE_NORMAL;
         ggml_tensor * cur    = inp;
+        cur                  = ggml_reshape_4d(ctx0, cur, cur->ne[1], cur->ne[2], cur->ne[0], cur->ne[3]);
         ggml_tensor * conv1_out =
             ggml_conv_2d_dw_direct(ctx0, layer.channel_block_conv1_fn_dw_w[jl], inp, 1, 1, 1, 1, 1, 1);
 
@@ -1015,18 +1017,18 @@ struct clip_graph {
         cb(cur, "ln1_channel", il);
 
         // need to separate
-        ggml_tensor * q_cur = ggml_mul_mat(ctx0, model.layers[il].q_w, inp);
-        ggml_tensor * k_cur = ggml_mul_mat(ctx0, model.layers[il].k_w, inp);
-        ggml_tensor * v_cur = ggml_mul_mat(ctx0, model.layers[il].v_w, inp);
+        ggml_tensor * q_cur = ggml_mul_mat(ctx0, model.layers[il].channel_block_attn_fn_q_w[jl], cur);
+        ggml_tensor * k_cur = ggml_mul_mat(ctx0, model.layers[il].channel_block_attn_fn_k_w[jl], cur);
+        ggml_tensor * v_cur = ggml_mul_mat(ctx0, model.layers[il].channel_block_attn_fn_v_w[jl], cur);
 
         if (model.layers[il].q_b) {
-            q_cur = ggml_add(ctx0, q_cur, model.layers[il].q_b);
+            q_cur = ggml_add(ctx0, q_cur, model.layers[il].channel_block_attn_fn_q_b[jl]);
         }
         if (model.layers[il].k_b) {
-            k_cur = ggml_add(ctx0, k_cur, model.layers[il].k_b);
+            k_cur = ggml_add(ctx0, k_cur, model.layers[il].channel_block_attn_fn_k_b[jl]);
         }
         if (model.layers[il].v_b) {
-            v_cur = ggml_add(ctx0, v_cur, model.layers[il].v_b);
+            v_cur = ggml_add(ctx0, v_cur, model.layers[il].channel_block_attn_fn_v_b[jl]);
         }
 
         // 重塑为多头格式

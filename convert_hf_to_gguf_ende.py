@@ -6226,6 +6226,9 @@ class Florence2VisionModel(MmprojModel):
 
         # 处理 vision tower block
         if name.startswith("vision_tower."):
+            if name.startswith("vision_tower.convs."):
+                return [(self.map_tensor_name(name), data_torch)]
+                
             mul_idx_keys = ["spatial_block", "channel_block"]
             mul_idx_key = next((k for k in mul_idx_keys if k in name), None)
             if mul_idx_key is not None:
